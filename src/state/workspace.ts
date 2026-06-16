@@ -192,8 +192,16 @@ export const workspace = {
     try {
       const raw = localStorage.getItem(STORAGE_KEY + ":" + name);
       if (!raw) return false;
-      const parsed = JSON.parse(raw) as { state: WorkspaceState };
-      workspace.set(() => parsed.state);
+      const parsed = JSON.parse(raw) as { state: Partial<WorkspaceState> };
+      // Merge with defaults for forward compatibility with older saves.
+      const merged: WorkspaceState = {
+        ...initial(),
+        ...parsed.state,
+        layouts: { ...structuredClone(DEFAULT_LAYOUTS), ...(parsed.state.layouts ?? {}) },
+        palette: parsed.state.palette ?? "amber",
+      };
+      workspace.set(() => merged);
+      applyPalette(merged.palette);
       return true;
     } catch (e) {
       console.warn("Workspace load failed", e);
