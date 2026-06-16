@@ -12,12 +12,18 @@ import { createSubtractiveVoice } from "./voices/subtractive";
 
 export interface TrackChannel {
   id: string;
+  kind: TrackKind;
   gain: GainNode;
   filter: BiquadFilterNode;
   trigger: (time: number, opts: { note: number; velocity: number; pLocks?: Record<string, number> }) => void;
 }
 
 export type TrackKind = DrumKind | "synth";
+
+export const ALL_TRACK_KINDS: TrackKind[] = [
+  "kick", "snare", "hat", "openhat", "clap", "rim",
+  "tom", "conga", "cowbell", "cymbal", "shaker", "perc", "synth",
+];
 
 class AudioEngine {
   ctx: AudioContext | null = null;
@@ -94,9 +100,34 @@ class AudioEngine {
       };
     }
 
-    const ch: TrackChannel = { id, gain, filter, trigger };
+    const ch: TrackChannel = { id, kind, gain, filter, trigger };
     this.tracks.set(id, ch);
     return ch;
+  }
+
+  removeTrack(id: string) {
+    const ch = this.tracks.get(id);
+    if (!ch) return;
+    try {
+      ch.filter.disconnect();
+      ch.gain.disconnect();
+    } catch {
+      /* ignore */
+    }
+    this.tracks.delete(id);
+  }
+
+  /** Reconcile engine channels with the pattern's tracks. Idempotent. */
+  syncTracks(tracks: Array<{ id: string; kind: TrackKind }>) {
+    if (!this.ctx) return;
+    const wanted = new Map(tracks.map((t) => [t.id, t.kind]));
+    for (const [id, ch] of this.tracks) {
+      const wantKind = wanted.get(id);
+      if (wantKind === undefined || wantKind !== ch.kind) this.removeTrack(id);
+    }
+    for (const t of tracks) {
+      if (!this.tracks.has(t.id)) this.addTrack(t.id, t.kind);
+    }
   }
 
   setTrackGain(id: string, value: number) {
