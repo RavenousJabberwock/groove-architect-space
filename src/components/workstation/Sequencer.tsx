@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Plus, X } from "lucide-react";
 import { bus } from "@/audio/bus";
 import { useWorkspace, workspace } from "@/state/workspace";
 import type { Condition, Step } from "@/sequencer/types";
+import { ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
 
 const CONDITIONS: Condition[] = [null, "1:2", "2:2", "FILL", "PRE", "NEI"];
 
@@ -29,9 +31,24 @@ export function SequencerPanel() {
 
   return (
     <div className="panel flex h-full flex-col p-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Sequencer</h2>
         <div className="readout text-xs">{String(playStep + 1).padStart(2, "0")} / 16</div>
+        <select
+          onChange={(e) => {
+            if (!e.target.value) return;
+            workspace.addTrack(e.target.value as TrackKind);
+            e.target.value = "";
+          }}
+          defaultValue=""
+          className="ml-auto flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-[10px] uppercase tracking-wider hover:bg-secondary"
+          title="Add track"
+        >
+          <option value="" disabled>+ Add track</option>
+          {ALL_TRACK_KINDS.map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
       </div>
       <div className="flex-1 space-y-1 overflow-auto">
         {pattern.tracks.map((track) => {
