@@ -4,7 +4,9 @@
  * automatically when the envelope completes.
  */
 
-export type DrumKind = "kick" | "snare" | "hat" | "clap" | "tom" | "perc";
+export type DrumKind =
+  | "kick" | "snare" | "hat" | "openhat" | "clap" | "rim"
+  | "tom" | "conga" | "cowbell" | "cymbal" | "shaker" | "perc";
 
 interface DrumOpts {
   time: number;
@@ -21,18 +23,18 @@ export function createDrumVoice(
   opts: DrumOpts,
 ) {
   switch (kind) {
-    case "kick":
-      return kick(ctx, dest, opts);
-    case "snare":
-      return snare(ctx, dest, opts);
-    case "hat":
-      return hat(ctx, dest, opts);
-    case "clap":
-      return clap(ctx, dest, opts);
-    case "tom":
-      return tom(ctx, dest, opts);
-    case "perc":
-      return perc(ctx, dest, opts);
+    case "kick":    return kick(ctx, dest, opts);
+    case "snare":   return snare(ctx, dest, opts);
+    case "hat":     return hat(ctx, dest, opts);
+    case "openhat": return openhat(ctx, dest, opts);
+    case "clap":    return clap(ctx, dest, opts);
+    case "rim":     return rim(ctx, dest, opts);
+    case "tom":     return tom(ctx, dest, opts);
+    case "conga":   return conga(ctx, dest, opts);
+    case "cowbell": return cowbell(ctx, dest, opts);
+    case "cymbal":  return cymbal(ctx, dest, opts);
+    case "shaker":  return shaker(ctx, dest, opts);
+    case "perc":    return perc(ctx, dest, opts);
   }
 }
 
