@@ -87,6 +87,40 @@ export const workspace = {
     engine.syncTracks(state.pattern.tracks.map((t) => ({ id: t.id, kind: t.kind as TrackKind })));
     notify();
   },
+  /** Lightweight update that does not re-sync audio/sequencer subsystems. */
+  patch(updater: (s: WorkspaceState) => WorkspaceState) {
+    state = updater(state);
+    notify();
+  },
+  setPanelVisible(id: PanelId, visible: boolean) {
+    workspace.patch((s) => ({
+      ...s,
+      layouts: { ...s.layouts, [id]: { ...s.layouts[id], visible } },
+    }));
+  },
+  setPanelLayout(id: PanelId, patch: Partial<PanelLayout>) {
+    workspace.patch((s) => ({
+      ...s,
+      layouts: { ...s.layouts, [id]: { ...s.layouts[id], ...patch } },
+    }));
+  },
+  bringPanelToFront(id: PanelId) {
+    workspace.patch((s) => {
+      const maxZ = Math.max(...Object.values(s.layouts).map((l) => l.z));
+      if (s.layouts[id].z === maxZ) return s;
+      return {
+        ...s,
+        layouts: { ...s.layouts, [id]: { ...s.layouts[id], z: maxZ + 1 } },
+      };
+    });
+  },
+  resetLayouts() {
+    workspace.patch((s) => ({ ...s, layouts: structuredClone(DEFAULT_LAYOUTS) }));
+  },
+  setPalette(id: string) {
+    applyPalette(id);
+    workspace.patch((s) => ({ ...s, palette: id }));
+  },
   /** Add a new track of the given kind. */
   addTrack(kind: TrackKind) {
     const id = `t-${kind}-${Math.random().toString(36).slice(2, 7)}`;
