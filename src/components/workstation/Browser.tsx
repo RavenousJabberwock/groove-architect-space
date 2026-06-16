@@ -7,7 +7,7 @@ export function BrowserPanel() {
   const [dragging, setDragging] = useState(false);
 
   return (
-    <div className="panel flex h-full flex-col p-3">
+    <div className="flex h-full flex-col p-3">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Browser</h2>
       <div className="mb-3 space-y-1">
         <div className="text-[10px] uppercase text-muted-foreground">Patterns</div>
