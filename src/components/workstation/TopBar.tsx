@@ -78,6 +78,13 @@ export function TopBar() {
           <Settings className="h-3 w-3" />
           {mode === "pro" ? "Pro" : "Beginner"}
         </button>
+        <WindowsMenu />
+        <button
+          onClick={() => setConfigOpen(true)}
+          className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 text-xs uppercase tracking-wider hover:bg-secondary"
+        >
+          <Sliders className="h-3 w-3" /> Configure
+        </button>
         <button
           onClick={() => {
             workspace.save();
@@ -97,6 +104,7 @@ export function TopBar() {
           <FolderOpen className="h-3 w-3" /> Load
         </button>
       </div>
+      <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
     </div>
   );
 }
