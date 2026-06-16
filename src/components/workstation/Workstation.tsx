@@ -7,9 +7,11 @@ import { DrumMachinePanel } from "./DrumMachine";
 import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
 import { workspace } from "@/state/workspace";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 /** Grid layout — panels can be reordered by mutating workspace.panelOrder. */
 export function Workstation() {
+  useKeyboardShortcuts();
   useEffect(() => {
     workspace.load();
   }, []);

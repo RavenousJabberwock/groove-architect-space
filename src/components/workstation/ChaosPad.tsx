@@ -78,7 +78,13 @@ export function ChaosPadPanel() {
         ref={ref}
         onPointerDown={(e) => {
           (e.target as Element).setPointerCapture(e.pointerId);
+          chaos.engage();
           handle(e);
+        }}
+        onPointerUp={() => chaos.release()}
+        onPointerCancel={() => chaos.release()}
+        onPointerLeave={(e) => {
+          if (e.buttons === 0) chaos.release();
         }}
         onPointerMove={(e) => {
           if (e.buttons) handle(e);
