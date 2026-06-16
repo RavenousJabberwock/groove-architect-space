@@ -22,7 +22,7 @@ export function SynthPanel() {
   };
 
   return (
-    <div className="panel flex h-full flex-col p-3">
+    <div className="flex h-full flex-col p-3">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Synth</h2>
         <span className="readout text-[10px]">SUBTRACTIVE</span>

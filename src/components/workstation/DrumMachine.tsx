@@ -13,7 +13,7 @@ export function DrumMachinePanel() {
   };
 
   return (
-    <div className="panel flex h-full flex-col p-3">
+    <div className="flex h-full flex-col p-3">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Drums</h2>
       <div className="grid grid-cols-3 gap-2">
         {drums.map((t) => (

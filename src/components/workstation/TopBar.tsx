@@ -1,15 +1,18 @@
-import { Play, Square, Save, FolderOpen, Zap, Settings } from "lucide-react";
+import { Play, Square, Save, FolderOpen, Zap, Settings, Sliders } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sequencer } from "@/sequencer/engine";
 import { workspace, useWorkspace } from "@/state/workspace";
 import { bus } from "@/audio/bus";
 import { boot } from "@/state/setup";
 import { toast } from "sonner";
+import { WindowsMenu } from "./WindowsMenu";
+import { ConfigDialog } from "./ConfigDialog";
 
 export function TopBar() {
   const pattern = useWorkspace((s) => s.pattern);
   const mode = useWorkspace((s) => s.mode);
   const [playing, setPlaying] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   useEffect(() => bus.on("transport:state", (e) => setPlaying(e.playing)), []);
 
@@ -75,6 +78,13 @@ export function TopBar() {
           <Settings className="h-3 w-3" />
           {mode === "pro" ? "Pro" : "Beginner"}
         </button>
+        <WindowsMenu />
+        <button
+          onClick={() => setConfigOpen(true)}
+          className="flex items-center gap-1 rounded border border-border bg-background px-3 py-1.5 text-xs uppercase tracking-wider hover:bg-secondary"
+        >
+          <Sliders className="h-3 w-3" /> Configure
+        </button>
         <button
           onClick={() => {
             workspace.save();
@@ -94,6 +104,7 @@ export function TopBar() {
           <FolderOpen className="h-3 w-3" /> Load
         </button>
       </div>
+      <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
     </div>
   );
 }

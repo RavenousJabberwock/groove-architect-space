@@ -30,7 +30,7 @@ export function SequencerPanel() {
   };
 
   return (
-    <div className="panel flex h-full flex-col p-3">
+    <div className="flex h-full flex-col p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Sequencer</h2>
         <div className="readout text-xs">{String(playStep + 1).padStart(2, "0")} / 16</div>

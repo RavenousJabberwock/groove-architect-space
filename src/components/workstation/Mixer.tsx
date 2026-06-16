@@ -5,7 +5,7 @@ export function MixerPanel() {
   const pattern = useWorkspace((s) => s.pattern);
 
   return (
-    <div className="panel flex h-full flex-col p-3">
+    <div className="flex h-full flex-col p-3">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Mixer</h2>
       <div className="flex flex-1 gap-2 overflow-auto">
         {pattern.tracks.map((t) => (
