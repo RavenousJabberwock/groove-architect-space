@@ -1,0 +1,133 @@
+import { useEffect, useState } from "react";
+import { bus } from "@/audio/bus";
+import { useWorkspace, workspace } from "@/state/workspace";
+import type { Condition, Step } from "@/sequencer/types";
+
+const CONDITIONS: Condition[] = [null, "1:2", "2:2", "FILL", "PRE", "NEI"];
+
+export function SequencerPanel() {
+  const pattern = useWorkspace((s) => s.pattern);
+  const selectedTrackId = useWorkspace((s) => s.selectedTrackId);
+  const mode = useWorkspace((s) => s.mode);
+  const [playStep, setPlayStep] = useState(0);
+
+  useEffect(() => bus.on("transport:step", (e) => setPlayStep(e.step % 16)), []);
+
+  const updateStep = (trackId: string, idx: number, patch: Partial<Step>) => {
+    workspace.set((s) => ({
+      ...s,
+      pattern: {
+        ...s.pattern,
+        tracks: s.pattern.tracks.map((t) =>
+          t.id === trackId
+            ? { ...t, steps: t.steps.map((st, i) => (i === idx ? { ...st, ...patch } : st)) }
+            : t,
+        ),
+      },
+    }));
+  };
+
+  return (
+    <div className="panel flex h-full flex-col p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Sequencer</h2>
+        <div className="readout text-xs">{String(playStep + 1).padStart(2, "0")} / 16</div>
+      </div>
+      <div className="flex-1 space-y-1 overflow-auto">
+        {pattern.tracks.map((track) => {
+          const selected = track.id === selectedTrackId;
+          return (
+            <div key={track.id} className="flex items-center gap-2">
+              <button
+                onClick={() => workspace.set((s) => ({ ...s, selectedTrackId: track.id }))}
+                className={`w-20 shrink-0 rounded px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wider ${
+                  selected ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
+                }`}
+              >
+                {track.name}
+              </button>
+              <div className="flex flex-1 gap-1">
+                {track.steps.slice(0, 16).map((step, i) => {
+                  const playing = i === playStep && i < track.length;
+                  const inBounds = i < track.length;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => updateStep(track.id, i, { active: !step.active })}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (mode !== "pro") return;
+                        const next: Condition =
+                          CONDITIONS[(CONDITIONS.indexOf(step.condition) + 1) % CONDITIONS.length] ?? null;
+                        updateStep(track.id, i, { condition: next });
+                      }}
+                      onWheel={(e) => {
+                        if (mode !== "pro") return;
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -5 : 5;
+                        updateStep(track.id, i, {
+                          probability: Math.max(0, Math.min(100, step.probability + delta)),
+                        });
+                      }}
+                      className={`relative h-9 flex-1 rounded border text-[9px] transition ${
+                        !inBounds
+                          ? "border-transparent bg-background/40 opacity-30"
+                          : step.active
+                            ? playing
+                              ? "border-accent bg-accent text-accent-foreground shadow-[0_0_12px_var(--color-accent)]"
+                              : "border-primary bg-primary text-primary-foreground"
+                            : playing
+                              ? "border-accent bg-accent/20"
+                              : i % 4 === 0
+                                ? "border-border bg-secondary"
+                                : "border-border bg-background"
+                      }`}
+                    >
+                      {mode === "pro" && step.active && step.condition && (
+                        <span className="readout absolute left-0.5 top-0 text-[8px]">
+                          {step.condition}
+                        </span>
+                      )}
+                      {mode === "pro" && step.active && step.probability < 100 && (
+                        <span className="readout absolute right-0.5 bottom-0 text-[8px]">
+                          {step.probability}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {mode === "pro" && (
+                <input
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={track.length}
+                  onChange={(e) =>
+                    workspace.set((s) => ({
+                      ...s,
+                      pattern: {
+                        ...s.pattern,
+                        tracks: s.pattern.tracks.map((t) =>
+                          t.id === track.id ? { ...t, length: Number(e.target.value) } : t,
+                        ),
+                      },
+                    }))
+                  }
+                  className="readout w-10 rounded border border-border bg-background px-1 py-0.5 text-right text-[10px]"
+                  title="Track length (polymeter)"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {mode === "pro" && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Right-click step: cycle conditional trigs. Scroll on step: probability. Length input on right
+          sets polymeter.
+        </p>
+      )}
+    </div>
+  );
+}
