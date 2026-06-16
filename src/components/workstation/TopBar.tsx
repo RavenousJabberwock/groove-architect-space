@@ -1,15 +1,18 @@
-import { Play, Square, Save, FolderOpen, Zap, Settings } from "lucide-react";
+import { Play, Square, Save, FolderOpen, Zap, Settings, Sliders } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sequencer } from "@/sequencer/engine";
 import { workspace, useWorkspace } from "@/state/workspace";
 import { bus } from "@/audio/bus";
 import { boot } from "@/state/setup";
 import { toast } from "sonner";
+import { WindowsMenu } from "./WindowsMenu";
+import { ConfigDialog } from "./ConfigDialog";
 
 export function TopBar() {
   const pattern = useWorkspace((s) => s.pattern);
   const mode = useWorkspace((s) => s.mode);
   const [playing, setPlaying] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   useEffect(() => bus.on("transport:state", (e) => setPlaying(e.playing)), []);
 
