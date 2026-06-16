@@ -11,6 +11,7 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 /** Grid layout — panels can be reordered by mutating workspace.panelOrder. */
 export function Workstation() {
+  useKeyboardShortcuts();
   useEffect(() => {
     workspace.load();
   }, []);
