@@ -130,3 +130,61 @@ function noise(
   src.start(time);
   src.stop(time + dur + 0.01);
 }
+
+function openhat(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+  noise(ctx, dest, time, velocity * 0.45, 0.32, 8000, "highpass");
+  noise(ctx, dest, time, velocity * 0.2, 0.3, 6500, "bandpass");
+}
+
+function rim(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.value = 1700;
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0.0001, time);
+  amp.gain.exponentialRampToValueAtTime(velocity * 0.4, time + 0.001);
+  amp.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+  osc.connect(amp).connect(dest);
+  osc.start(time);
+  osc.stop(time + 0.06);
+  noise(ctx, dest, time, velocity * 0.2, 0.03, 4000, "highpass");
+}
+
+function cowbell(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+  for (const f of [800, 540]) {
+    const o = ctx.createOscillator();
+    o.type = "square";
+    o.frequency.value = f;
+    const a = ctx.createGain();
+    a.gain.setValueAtTime(0.0001, time);
+    a.gain.exponentialRampToValueAtTime(velocity * 0.22, time + 0.002);
+    a.gain.exponentialRampToValueAtTime(0.0001, time + 0.3);
+    o.connect(a).connect(dest);
+    o.start(time);
+    o.stop(time + 0.32);
+  }
+}
+
+function cymbal(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+  noise(ctx, dest, time, velocity * 0.35, 0.9, 6000, "highpass");
+  noise(ctx, dest, time, velocity * 0.2, 0.6, 9000, "bandpass");
+}
+
+function conga(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  const f = 220 * semi(tune);
+  osc.frequency.setValueAtTime(f * 1.6, time);
+  osc.frequency.exponentialRampToValueAtTime(f, time + 0.05);
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0.0001, time);
+  amp.gain.exponentialRampToValueAtTime(velocity * 0.7, time + 0.003);
+  amp.gain.exponentialRampToValueAtTime(0.0001, time + 0.22);
+  osc.connect(amp).connect(dest);
+  osc.start(time);
+  osc.stop(time + 0.24);
+}
+
+function shaker(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+  noise(ctx, dest, time, velocity * 0.3, 0.06, 7500, "highpass");
+}
