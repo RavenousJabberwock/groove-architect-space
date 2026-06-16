@@ -4,6 +4,8 @@ A modular, browser-based hybrid music workstation built with React, TypeScript, 
 
 > Status: **MVP foundation.** The core audio engine, sequencer, MIDI layer, chaos pad, and workspace system are functional. Wavetable/FM synthesis, song mode, full automation curves, and Cloud-backed workspaces are scaffolded for follow-up work.
 
+You can make some music live at https://groove-architect-space.lovable.app/
+
 ---
 
 ## Table of Contents
