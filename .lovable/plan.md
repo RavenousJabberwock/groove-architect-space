@@ -1,151 +1,83 @@
+# Feature batch: Scenes, Ducking, Playlist, Triggers
 
-# Hybrid Music Workstation — MVP Foundation
+## 1. Scenes / snapshots (RPG one-click recall)
 
-A modular browser-based workstation with a working drum machine, basic synth, chaos pad, 16-step sequencer with probability/conditional trigs, MIDI 1.0 (with MIDI 2.0 interface stubs), and Lovable Cloud-backed workspaces & presets. Dark Elektron-inspired UI.
+A scene captures: which music tracks are playing + their volumes, music/sfx master levels, and (optionally) the current pattern. Recall fades old music out and new music in over the global Fade time.
 
-## Scope for this iteration
-
-In:
-- Project skeleton with isolated subsystems and a central event bus
-- Real-time Web Audio engine (low latency, single AudioContext, shared transport clock)
-- Drum machine: 8 tracks, synthesized voices (kick, snare, hat, clap, tom, perc) + sample slot per track
-- Synth: subtractive voice (osc + filter + ADSR) — wavetable/FM scaffolded as voice modules but only subtractive is audible
-- Chaos pad: XY controller mapped to filter cutoff + resonance (with macro routing system), touch + mouse
-- Sequencer: 16 steps × N tracks, per-track length (polymeter), per-step probability and basic conditional trigs (1:2, 2:2, FILL), play/stop, BPM, swing
-- MIDI: Web MIDI input/output, MIDI learn, note-out on triggers. A `MidiBackend` interface with `Midi1Backend` implemented and `Midi2Backend` stub
-- UI shell: dark hardware aesthetic, movable/dockable panels (drum, synth, chaos, sequencer, mixer-lite, browser), beginner/pro toggle
-- Workspaces: save full app state to Cloud per user; list / load / delete; auth (email+password + Google)
-- Presets: kits, synth patches, chaos macros, patterns — stored in Cloud with public/private flag
-- Sample upload via drag-and-drop into Cloud Storage; per-user `samples` bucket
-
-Out (explicitly deferred):
-- Wavetable & FM voice DSP (interfaces only)
-- Visual modulation matrix UI (data model only)
-- Automation lanes with curves (data model only; no editor)
-- Song mode / pattern chaining UI (data model only)
-- Full MIDI 2.0 (interface + stub backend only)
-- XY automation recording playback (recording stub; no playback editor)
-
-## Architecture
-
-```text
-src/
-  audio/
-    engine.ts             # AudioContext, master bus, transport clock (lookahead scheduler)
-    bus.ts                # typed event bus (pub/sub)
-    voices/
-      drum-voices.ts      # synthesized kick/snare/hat/clap/tom
-      sample-voice.ts     # buffer playback
-      subtractive.ts      # osc+filter+amp ADSR
-      wavetable.ts        # stub
-      fm.ts               # stub
-    fx/
-      filter.ts           # shared SVF used by chaos pad
-  sequencer/
-    types.ts              # Pattern, Track, Step, Conditional
-    engine.ts             # step scheduler, polymeter, probability, conditionals
-    automation.ts         # lane data model (no UI)
-  midi/
-    types.ts              # MidiBackend interface, MidiMessage
-    midi1-backend.ts      # Web MIDI 1.0
-    midi2-backend.ts      # stub, same interface
-    learn.ts              # MIDI learn registry
-    router.ts             # routes messages → params
-  chaos/
-    pad.ts                # XY state, macro routing, recording stub
-  state/
-    workspace.ts          # zustand store: kits, patches, patterns, panels, theme, mode
-    serialize.ts          # toJSON / fromJSON for workspaces
-  presets/
-    kits.ts               # default kit definitions
-    patches.ts            # default synth patches
-    patterns.ts           # demo patterns
-  components/
-    workstation/
-      Workstation.tsx     # panel container, drag layout
-      Panel.tsx           # movable panel wrapper
-      TopBar.tsx          # transport, BPM, mode toggle, workspace menu
-      DrumMachine.tsx
-      Synth.tsx
-      ChaosPad.tsx
-      Sequencer.tsx
-      Mixer.tsx
-      Browser.tsx         # presets + samples drag/drop
-      ModeToggle.tsx      # beginner ↔ pro
-    ui/                   # shadcn (existing)
-  lib/
-    workspace.functions.ts # createServerFn: save/load/list/delete workspace
-    presets.functions.ts   # createServerFn: list/save presets
-    samples.functions.ts   # signed upload URLs for samples bucket
-  routes/
-    __root.tsx            # providers, theme, audio engine boot
-    index.tsx             # marketing/landing → "Open Workstation"
-    auth.tsx              # email + Google sign-in
-    _authenticated/
-      route.tsx           # managed gate
-      studio.tsx          # main workstation
-      browse.tsx          # community presets
-  styles.css              # dark hardware tokens (OLED black, amber/red accents, mono readouts)
+**Data model (`src/state/workspace.ts`):**
+```ts
+interface Scene {
+  id: string;
+  name: string;       // "Tavern", "Combat", "Boss"
+  music: { id: string; volume: number }[];  // tracks to play
+  musicMaster: number;
+  sfxMaster: number;
+  capturedAt: number;
+}
+state.scenes: Scene[];
+state.activeSceneId?: string;
 ```
 
-Central event bus decouples subsystems: sequencer emits `step:trigger`, chaos pad emits `param:change`, MIDI router emits `midi:note`/`midi:cc`. The audio engine, UI meters, and recording subsystems subscribe.
+**Methods:** `captureScene(name)`, `recallScene(id)` (stops non-listed music with fadeMs, starts listed music with crossfade), `renameScene`, `removeScene`.
 
-## Audio engine
+**UI:** New `Scenes` panel (`src/components/workstation/Scenes.tsx`) registered as a new `PanelType`. Grid of named tiles — click to recall, long-press/edit to rename, "Capture current" button at top. Active scene highlighted.
 
-- One `AudioContext`, master limiter, per-track gain.
-- Transport: 25 ms lookahead scheduler (Chris Wilson pattern) using `currentTime` for sample-accurate step timing.
-- Voices implement `trigger(time, params)` and own teardown; drum voices are stateless one-shots.
-- Chaos pad writes into shared `filterCutoffParam` / `filterResonanceParam` via `setTargetAtTime`.
+## 2. Sidechain ducking (music dips when SFX fires)
 
-## Sequencer logic
+When any soundboard pad triggers, briefly lower the music master so the effect cuts through.
 
-- Per track: `steps[]`, `length` (1–32), `divisor` (for polyrhythm), `pageOffset`.
-- Per step: `active`, `velocity`, `probability` (0–100), `condition` (`null | "1:2" | "2:2" | "FILL" | "PRE" | "NEI"`), `pLock` map.
-- On each tick: increment per-track step counter independently → polymeter; gate by probability + condition; emit trigger to event bus.
+**Engine (`src/audio/media-player.ts`):** add a `duckMultiplier` (0..1, default 1) applied on top of per-track volume. `mediaPlayer.duck({ amount, attackMs, holdMs, releaseMs })` schedules: ramp multiplier from 1→`1-amount` over attack, hold, then ramp back. While ducked, `setVolume` calls keep multiplier intact.
 
-## MIDI
+**Wire-up (`src/components/workstation/Soundboard.tsx`):** call `mediaPlayer.duck(...)` inside `trigger()` using workspace settings.
 
-- `MidiBackend` interface: `init()`, `inputs()`, `outputs()`, `onMessage(cb)`, `send(msg)`.
-- `Midi1Backend` uses `navigator.requestMIDIAccess()`.
-- `Midi2Backend` exposes the same surface but throws `NotImplemented` on `send` with a UMP payload; selectable in settings, future-ready.
-- MIDI learn: click a control → arm → next incoming CC binds; mapping persisted in workspace.
+**Settings (`src/state/workspace.ts` + `ConfigDialog.tsx`):**
+```ts
+duck: { enabled: boolean; amount: number; attackMs: number; holdMs: number; releaseMs: number }
+```
+Sliders in Configure dialog under a new "Sidechain Ducking" section.
 
-## Chaos pad
+## 3. Playlist with auto-crossfade
 
-- Square XY area, finger/mouse tracking, trail visualization on canvas.
-- Macros: each axis maps to up to 4 destinations with depth (modulation matrix data structure under the hood — UI is the pad, not a matrix yet).
-- Recording stub: captures `(t, x, y)` to an array; playback wired for later iteration.
+Music Board gains a `Playlist` toggle. When on, the player listens for `ended` (or near-end timeupdate, since `loop` overrides `ended`) and crossfades to the next track in `playlist.trackIds`. Loop is forced off while playlist mode is active.
 
-## UI / styling
+**Data model:**
+```ts
+state.playlist: { enabled: boolean; trackIds: string[]; shuffle: boolean }
+```
 
-- Dark hardware Elektron-inspired: OLED black `oklch(0.12 0 0)` background, panel surfaces `oklch(0.16 0 0)`, amber primary `oklch(0.78 0.15 75)`, red accent `oklch(0.62 0.22 25)`.
-- JetBrains Mono for readouts, Inter for labels, all defined in `@theme` in `src/styles.css`.
-- Movable panels via simple grid-slot drag (no heavy lib): drag handle on panel header swaps slot index. Stored in workspace.
-- Beginner mode hides: probability, conditionals, MIDI learn, polymeter length, p-locks. Pro mode reveals everything.
+**Implementation:** `MusicBoard.tsx` watches the playing track's element via `timeupdate`; when `duration - currentTime < fadeMs/1000`, it crossfades to the next track in `trackIds` (advancing the cursor, wrapping at end, shuffling once per cycle). A toggle button in the header turns it on/off; a drag-to-reorder list (simple up/down arrows for v1) under the toggle controls order.
 
-## Workspace & presets (Lovable Cloud)
+## 4. Per-pad hotkeys + MIDI note triggers
 
-Tables (RLS on, scoped to `auth.uid()`):
-- `workspaces (id, user_id, name, data jsonb, updated_at)`
-- `presets (id, user_id, kind enum['kit','patch','pattern','chaos'], name, data jsonb, is_public bool, created_at)`
-- `samples (id, user_id, name, storage_path, duration_ms, created_at)`
+Every Music track and every SFX pad can be bound to a keyboard key and/or a MIDI note. Pressing the key (or receiving note-on) triggers the pad. SFX = one-shot; Music = toggle play/stop with crossfade.
 
-Storage: private `samples` bucket; signed URLs via server fn.
+**Data model additions:**
+```ts
+MusicTrack: { hotkey?: string; midiNote?: number; midiChannel?: number }
+SoundEffect: { hotkey?: string; midiNote?: number; midiChannel?: number }
+```
 
-Server fns in `src/lib/*.functions.ts` using `requireSupabaseAuth`:
-- `saveWorkspace`, `loadWorkspace`, `listWorkspaces`, `deleteWorkspace`
-- `savePreset`, `listPresets` (own + public)
-- `createSampleUploadUrl`, `listSamples`
+**Router (`src/hooks/use-pad-triggers.ts`):** new global hook mounted from `Workstation.tsx`. Listens to:
+- `window` keydown — match against `hotkey` strings (e.g. `"q"`, `"Shift+1"`); ignore while typing in inputs.
+- `bus.on("midi:message")` for note-on (`status & 0xf0 === 0x90`, velocity > 0) — match against `midiNote` (+optional channel).
 
-Auth: email + password and Google (via Lovable broker). Studio lives under `_authenticated/`.
+When matched: SFX → call the same trigger logic Soundboard uses (extract to `src/audio/triggers.ts` so both can share); Music → toggle via mediaPlayer with crossfade.
 
-## Deliverables this iteration
+**Learn UI:**
+- `MusicBoard.tsx` row gains a compact "K: Q · M: ―" pill with a "Learn" button. Click → next keypress / midi note is captured and stored. Esc cancels.
+- `Soundboard.tsx` edit panel gains the same Hotkey + MIDI Learn fields.
 
-1. Cloud enabled, auth wired, tables + RLS + storage bucket created.
-2. Audio engine + sequencer + drum voices + subtractive synth + chaos pad audible end-to-end.
-3. MIDI 1.0 in/out + learn working; MIDI 2.0 backend stub selectable.
-4. Studio UI with movable panels, beginner/pro toggle, dark hardware theme.
-5. Workspace save/load, default kits/patches/patterns, sample drag-and-drop upload.
-6. README in `docs/` describing architecture, event bus contract, and how to add a new voice/backend.
+**MIDI capture:** extend `midi/learn.ts` with an `armNote(target)` method (parallel to existing `arm` for CC), and have the router subscribe to a new `bus` event `midi:learn-note`.
 
-After you approve, I'll enable Lovable Cloud, scaffold the files, and build the MVP. Subsequent iterations can layer in wavetable/FM DSP, automation curve editor, modulation matrix UI, song mode, and full MIDI 2.0.
+## 5. Shared trigger helper
+
+`src/audio/triggers.ts` — pure function `triggerSfx(sfx)` and `toggleMusic(track)` consolidated from current Soundboard / MusicBoard logic so the new global hook and existing UI both call the same code.
+
+## Files
+
+**New:** `src/components/workstation/Scenes.tsx`, `src/audio/triggers.ts`, `src/hooks/use-pad-triggers.ts`
+
+**Edited:** `src/state/workspace.ts` (Scene, Playlist, Duck, hotkey/midiNote fields + methods), `src/audio/media-player.ts` (duck), `src/midi/learn.ts` (armNote), `src/audio/bus.ts` (midi:learn-note event), `src/components/workstation/Workstation.tsx` (mount hook, register Scenes panel), `src/components/workstation/MusicBoard.tsx` (playlist toggle, hotkey UI, use shared trigger), `src/components/workstation/Soundboard.tsx` (hotkey UI, use shared trigger, duck call), `src/components/workstation/ConfigDialog.tsx` (Ducking section), `src/components/workstation/TopBar.tsx` (scene quick-recall dropdown — optional), `README.md` (document).
+
+## Out of scope for this batch
+Randomized ambient triggers, per-track EQ/meters, undo/redo, command palette, drag-to-reorder polish. Easy follow-ups once this lands.

@@ -48,10 +48,14 @@ You can make some music live at https://groove-architect-space.lovable.app/
 
 ### RPG-Oriented Boards
 - **Music Board** — DJ-style background music mixer with per-track loop toggle and crossfade. URL or local-file ingestion, auto-titled from ID3 v2 `TIT2` frames, with user overrides preserved.
+  - **Playlist mode** queues selected tracks and auto-crossfades between them a few seconds before each track ends (Shuffle optional).
 - **Soundboard** — grid of one-shot SFX pads. Each pad is one of:
   - `sample` — audio URL or uploaded file.
   - `midi` — any built-in percussion voice.
   - `synth` — custom note + waveform + ADSR pad.
+- **Sidechain ducking** — when a soundboard pad fires, music momentarily dips so the effect cuts through. Amount, attack, hold, and release are tunable in the **Configure** dialog.
+- **Scenes** — capture the currently-playing music + master levels as a named snapshot (e.g. "Tavern", "Combat", "Boss"). Tap a scene tile later to crossfade back into that arrangement.
+- **Per-pad hotkeys & MIDI triggers** — every music track and every SFX pad can be bound to a keyboard key (with modifier support) and/or an incoming MIDI note. Click **Bind** on a music row, or the key/midi controls inside a pad's edit panel, then press the key or play the note you want to assign.
 
 ### UI
 - **Hardware/Elektron-inspired dark theme** with JetBrains Mono and 5 swappable palettes (Amber, Phosphor, Cyan, Synthwave, Mono).

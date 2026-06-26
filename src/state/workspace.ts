@@ -32,7 +32,8 @@ export type PanelType =
   | "mixer"
   | "browser"
   | "music"
-  | "soundboard";
+  | "soundboard"
+  | "scenes";
 
 /** Backwards-compatible alias — some older callers still import PanelId. */
 export type PanelId = PanelType;
@@ -45,6 +46,7 @@ export const PANEL_TYPES: PanelType[] = [
   "browser",
   "music",
   "soundboard",
+  "scenes",
 ];
 /** Alias kept for older code that imported PANEL_IDS. */
 export const PANEL_IDS = PANEL_TYPES;
@@ -58,6 +60,7 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   browser: "Browser",
   music: "Music Board",
   soundboard: "Soundboard",
+  scenes: "Scenes",
 };
 
 /** Per-instance floating-window layout, in % of the workspace container. */
@@ -93,6 +96,7 @@ export const DEFAULT_LAYOUTS: Record<string, PanelInstance> = {
   browser:    { id: "browser",    type: "browser",    visible: false, x: 87.7, y: 0.3,  w: 12.0, h: 49.5, z: 1 },
   music:      { id: "music",      type: "music",      visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
   soundboard: { id: "soundboard", type: "soundboard", visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
+  scenes:     { id: "scenes",     type: "scenes",     visible: false, x: 10,   y: 10,   w: 40,   h: 50,   z: 1 },
 };
 
 /** A streamable, fade-able background music track. */
@@ -102,6 +106,12 @@ export interface MusicTrack {
   url: string;
   volume: number; // 0..1
   loop: boolean;
+  /** Optional keyboard hotkey (e.g. "q", "Shift+1") to toggle this track. */
+  hotkey?: string;
+  /** Optional MIDI note (0..127) that toggles this track. */
+  midiNote?: number;
+  /** Optional MIDI channel filter (0..15); undefined = any channel. */
+  midiChannel?: number;
 }
 
 /** A one-shot sound effect cue. */
@@ -131,6 +141,45 @@ export interface SoundEffect {
   adsr?: SfxAdsr;
   /** synth: oscillator waveform. */
   wave?: OscillatorType;
+  /** Optional keyboard hotkey to fire this pad. */
+  hotkey?: string;
+  /** Optional MIDI note that fires this pad. */
+  midiNote?: number;
+  midiChannel?: number;
+}
+
+/** Sidechain ducking settings — music dips when soundboard pads fire. */
+export interface DuckSettings {
+  enabled: boolean;
+  amount: number; // 0..1, how much to dip
+  attackMs: number;
+  holdMs: number;
+  releaseMs: number;
+}
+
+const DEFAULT_DUCK: DuckSettings = {
+  enabled: true,
+  amount: 0.5,
+  attackMs: 30,
+  holdMs: 120,
+  releaseMs: 400,
+};
+
+/** Playlist auto-crossfade settings. */
+export interface PlaylistSettings {
+  enabled: boolean;
+  trackIds: string[];
+  shuffle: boolean;
+}
+
+/** A named snapshot of music + master state for one-tap scene recall. */
+export interface Scene {
+  id: string;
+  name: string;
+  music: { id: string; volume: number }[];
+  musicMaster: number;
+  sfxMaster: number;
+  capturedAt: number;
 }
 
 export interface WorkspaceState {
@@ -147,6 +196,10 @@ export interface WorkspaceState {
   musicMaster: number; // 0..1
   sfxMaster: number; // 0..1
   fadeMs: number; // default crossfade duration
+  duck: DuckSettings;
+  playlist: PlaylistSettings;
+  scenes: Scene[];
+  activeSceneId?: string;
 }
 
 const DEFAULT_MUSIC: MusicTrack[] = [
@@ -187,6 +240,10 @@ function initial(): WorkspaceState {
     musicMaster: 0.8,
     sfxMaster: 0.9,
     fadeMs: 2000,
+    duck: { ...DEFAULT_DUCK },
+    playlist: { enabled: false, trackIds: [], shuffle: false },
+    scenes: [],
+    activeSceneId: undefined,
   };
 }
 
@@ -424,6 +481,87 @@ export const workspace = {
     workspace.patch((s) => ({ ...s, sfxMaster: Math.max(0, Math.min(1, v)) }));
   },
 
+  // ===== Sidechain ducking =====
+  setDuck(patch: Partial<DuckSettings>) {
+    workspace.patch((s) => ({ ...s, duck: { ...s.duck, ...patch } }));
+  },
+
+  // ===== Playlist =====
+  setPlaylist(patch: Partial<PlaylistSettings>) {
+    workspace.patch((s) => ({ ...s, playlist: { ...s.playlist, ...patch } }));
+  },
+
+  // ===== Scenes =====
+  /**
+   * Capture the currently-playing music + master state as a named scene.
+   * If `name` matches an existing scene, that scene is overwritten.
+   */
+  captureScene(name: string): string {
+    const s = workspace.get();
+    const playing = s.musicTracks
+      .filter((t) => mediaPlayer.isPlaying(t.id))
+      .map((t) => ({ id: t.id, volume: t.volume }));
+    const existing = s.scenes.find((x) => x.name === name);
+    const id = existing?.id ?? `scene-${Math.random().toString(36).slice(2, 8)}`;
+    const scene: Scene = {
+      id,
+      name,
+      music: playing,
+      musicMaster: s.musicMaster,
+      sfxMaster: s.sfxMaster,
+      capturedAt: Date.now(),
+    };
+    workspace.patch((cur) => {
+      const without = cur.scenes.filter((x) => x.id !== id);
+      return { ...cur, scenes: [...without, scene], activeSceneId: id };
+    });
+    return id;
+  },
+  renameScene(id: string, name: string) {
+    workspace.patch((s) => ({
+      ...s,
+      scenes: s.scenes.map((x) => (x.id === id ? { ...x, name } : x)),
+    }));
+  },
+  removeScene(id: string) {
+    workspace.patch((s) => ({
+      ...s,
+      scenes: s.scenes.filter((x) => x.id !== id),
+      activeSceneId: s.activeSceneId === id ? undefined : s.activeSceneId,
+    }));
+  },
+  /**
+   * Recall a scene: stop any music not in the scene (with fadeMs), start
+   * scene tracks (with crossfade). Master levels are restored.
+   */
+  recallScene(id: string) {
+    const s = workspace.get();
+    const scene = s.scenes.find((x) => x.id === id);
+    if (!scene) return;
+    const fadeMs = s.fadeMs;
+    const wantIds = new Set(scene.music.map((m) => m.id));
+    for (const tr of s.musicTracks) {
+      if (mediaPlayer.isPlaying(tr.id) && !wantIds.has(tr.id)) {
+        mediaPlayer.stop(tr.id, fadeMs);
+      }
+    }
+    workspace.patch((cur) => ({
+      ...cur,
+      musicMaster: scene.musicMaster,
+      sfxMaster: scene.sfxMaster,
+      activeSceneId: id,
+    }));
+    for (const cue of scene.music) {
+      const tr = s.musicTracks.find((m) => m.id === cue.id);
+      if (!tr || !tr.url) continue;
+      void mediaPlayer.play(tr.id, tr.url, {
+        volume: cue.volume * scene.musicMaster,
+        loop: tr.loop,
+        fadeMs,
+      });
+    }
+  },
+
   subscribe(l: () => void) {
     listeners.add(l);
     return () => listeners.delete(l);
@@ -441,11 +579,15 @@ export const workspace = {
       const raw = localStorage.getItem(STORAGE_KEY + ":" + name);
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { state: Partial<WorkspaceState> };
+      const base = initial();
       const merged: WorkspaceState = {
-        ...initial(),
+        ...base,
         ...parsed.state,
         layouts: migrateLayouts(parsed.state.layouts),
         palette: parsed.state.palette ?? "amber",
+        duck: { ...base.duck, ...(parsed.state.duck ?? {}) },
+        playlist: { ...base.playlist, ...(parsed.state.playlist ?? {}) },
+        scenes: parsed.state.scenes ?? [],
       };
       workspace.set(() => merged);
       applyPalette(merged.palette);

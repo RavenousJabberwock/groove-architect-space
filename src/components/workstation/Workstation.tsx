@@ -7,6 +7,7 @@ import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
 import { MusicBoardPanel } from "./MusicBoard";
 import { SoundboardPanel } from "./Soundboard";
+import { ScenesPanel } from "./Scenes";
 import { PanelWindow } from "./PanelWindow";
 import {
   workspace,
@@ -17,6 +18,7 @@ import {
 } from "@/state/workspace";
 import { applyPalette } from "@/themes/palettes";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { usePadTriggers } from "@/hooks/use-pad-triggers";
 
 /** Map panel type → React component. Used by the dynamic renderer below. */
 const PANEL_COMPONENTS: Record<PanelType, (instanceId: string) => ReactElement> = {
@@ -27,6 +29,7 @@ const PANEL_COMPONENTS: Record<PanelType, (instanceId: string) => ReactElement> 
   browser: () => <BrowserPanel />,
   music: () => <MusicBoardPanel />,
   soundboard: () => <SoundboardPanel />,
+  scenes: () => <ScenesPanel />,
 };
 
 /** Returns true if the given instance id is one of the "default" singleton ids. */
@@ -41,6 +44,7 @@ function isDefaultInstance(inst: PanelInstance): boolean {
  */
 export function Workstation() {
   useKeyboardShortcuts();
+  usePadTriggers();
   useEffect(() => {
     workspace.load();
     applyPalette(workspace.get().palette);
