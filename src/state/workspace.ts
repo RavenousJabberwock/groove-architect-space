@@ -782,12 +782,16 @@ export const workspace = {
       const merged: WorkspaceState = {
         ...base,
         ...parsed.state,
+        patterns: parsed.state.patterns ?? base.patterns,
+        song: { ...base.song, ...(parsed.state.song ?? {}) },
+        customPalettes: parsed.state.customPalettes ?? [],
         layouts: migrateLayouts(parsed.state.layouts),
         palette: parsed.state.palette ?? "amber",
         duck: { ...base.duck, ...(parsed.state.duck ?? {}) },
         playlist: { ...base.playlist, ...(parsed.state.playlist ?? {}) },
         scenes: parsed.state.scenes ?? [],
       };
+      setCustomPalettes(merged.customPalettes);
       workspace.set(() => merged);
       applyPalette(merged.palette);
       return true;
@@ -809,6 +813,13 @@ export const workspace = {
 
 // Boot sequencer with default pattern immediately so the UI has a pattern.
 sequencer.load(state.pattern);
+
+// Hook the song controller into the live workspace + sequencer event stream.
+songController.attach(() => ({
+  enabled: state.song.enabled,
+  items: state.song.items,
+  patternById: (id: string) => state.patterns.find((p) => p.id === id) ?? null,
+}));
 
 export function useWorkspace<T>(selector: (s: WorkspaceState) => T): T {
   return useSyncExternalStore(
