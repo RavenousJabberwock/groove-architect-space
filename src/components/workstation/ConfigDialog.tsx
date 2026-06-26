@@ -209,3 +209,38 @@ export function ConfigDialog({ open, onClose }: Props) {
     </div>
   );
 }
+
+function DuckSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  fmt,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  fmt: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[10px] uppercase">
+      <span className="w-16 text-muted-foreground">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-[var(--color-primary)]"
+      />
+      <span className="readout w-14 text-right normal-case">{fmt(value)}</span>
+    </label>
+  );
+}
+
