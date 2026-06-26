@@ -159,8 +159,10 @@ src/
 ├── audio/                  Web Audio engine + voices + event bus
 │   ├── bus.ts              Central typed event bus
 │   ├── engine.ts           AudioContext, master bus, track channels
+│   ├── id3.ts              Minimal ID3v2 TIT2 reader (auto-titles for media)
+│   ├── media-player.ts     HTMLAudio layer for Music Board / Soundboard samples
 │   └── voices/
-│       ├── drum-voices.ts  12 synthesized drum voices
+│       ├── drum-voices.ts  12 synthesized drum voices (pitch-aware via tune/note)
 │       └── subtractive.ts  Saw → filter → ADSR synth
 ├── sequencer/
 │   ├── engine.ts           Lookahead step scheduler
