@@ -126,6 +126,3 @@ function SceneTile({ scene, active }: { scene: Scene; active: boolean }) {
   );
 }
 
-export { ScenesPanel as default };
-// Re-export under both names used by callers.
-export { Check as _CheckPlaceholder, X as _XPlaceholder };
