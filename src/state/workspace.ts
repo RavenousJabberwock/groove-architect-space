@@ -541,7 +541,86 @@ export const workspace = {
     engine.setTrackSend(id, target, v);
   },
 
-  // ===== Music Board =====
+  // ===== Pattern library + Song mode =====
+  /** Snapshot the current pattern into the library under a new id+name. */
+  savePatternToLibrary(name: string): string {
+    const id = `p-${Math.random().toString(36).slice(2, 8)}`;
+    const snap: Pattern = { ...structuredClone(state.pattern), id, name };
+    workspace.patch((s) => ({ ...s, patterns: [...s.patterns, snap] }));
+    return id;
+  },
+  renamePattern(id: string, name: string) {
+    workspace.patch((s) => ({
+      ...s,
+      patterns: s.patterns.map((p) => (p.id === id ? { ...p, name } : p)),
+      pattern: s.pattern.id === id ? { ...s.pattern, name } : s.pattern,
+    }));
+  },
+  removePatternFromLibrary(id: string) {
+    workspace.patch((s) => ({
+      ...s,
+      patterns: s.patterns.filter((p) => p.id !== id),
+      song: { ...s.song, items: s.song.items.filter((i) => i.patternId !== id) },
+    }));
+  },
+  loadPatternFromLibrary(id: string) {
+    const p = state.patterns.find((x) => x.id === id);
+    if (!p) return;
+    workspace.set((s) => ({ ...s, pattern: structuredClone(p), selectedTrackId: p.tracks[0]?.id ?? "" }));
+  },
+  setSongEnabled(enabled: boolean) {
+    workspace.patch((s) => ({ ...s, song: { ...s.song, enabled } }));
+  },
+  addToSongChain(patternId: string, bars = 2) {
+    workspace.patch((s) => ({
+      ...s,
+      song: { ...s.song, items: [...s.song.items, { patternId, bars: Math.max(1, bars) }] },
+    }));
+  },
+  removeChainItem(idx: number) {
+    workspace.patch((s) => ({
+      ...s,
+      song: { ...s.song, items: s.song.items.filter((_, i) => i !== idx) },
+    }));
+  },
+  setChainBars(idx: number, bars: number) {
+    workspace.patch((s) => ({
+      ...s,
+      song: {
+        ...s.song,
+        items: s.song.items.map((it, i) => (i === idx ? { ...it, bars: Math.max(1, bars) } : it)),
+      },
+    }));
+  },
+  moveChainItem(idx: number, dir: -1 | 1) {
+    workspace.patch((s) => {
+      const items = [...s.song.items];
+      const j = idx + dir;
+      if (j < 0 || j >= items.length) return s;
+      [items[idx], items[j]] = [items[j], items[idx]];
+      return { ...s, song: { ...s.song, items } };
+    });
+  },
+
+  // ===== Custom palettes =====
+  addCustomPalette(p: Palette) {
+    workspace.patch((s) => {
+      const next = [...s.customPalettes.filter((x) => x.id !== p.id), p];
+      setCustomPalettes(next);
+      return { ...s, customPalettes: next };
+    });
+  },
+  removeCustomPalette(id: string) {
+    workspace.patch((s) => {
+      const next = s.customPalettes.filter((x) => x.id !== id);
+      setCustomPalettes(next);
+      const palette = s.palette === id ? "amber" : s.palette;
+      if (s.palette === id) applyPalette("amber");
+      return { ...s, customPalettes: next, palette };
+    });
+  },
+
+
   addMusic(t: Partial<MusicTrack> & { title: string; url: string }) {
     const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
     const track: MusicTrack = {
