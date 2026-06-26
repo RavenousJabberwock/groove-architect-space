@@ -119,30 +119,33 @@ function PadCell({
   const badge = kind === "midi" ? (sfx.midiKind ?? "midi") : kind === "synth" ? noteName(sfx.note ?? 60) : "sample";
   return (
     <div className="relative">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onTrigger}
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onTrigger()}
         onContextMenu={(e) => {
           e.preventDefault();
           onEdit();
         }}
-        className={`flex h-16 w-full flex-col items-center justify-center rounded border border-border px-2 text-center text-xs transition active:scale-[0.97] ${
+        className={`flex h-16 w-full cursor-pointer flex-col items-center justify-center rounded border border-border px-2 text-center text-xs transition active:scale-[0.97] ${
           ready ? "bg-secondary hover:brightness-110" : "bg-card/40 text-muted-foreground"
         }`}
       >
         <span className="line-clamp-2 leading-tight">{sfx.title}</span>
         <span className="mt-0.5 text-[9px] uppercase tracking-wider opacity-60">{badge}</span>
         {!ready && <span className="text-[9px] opacity-60">tap to configure</span>}
-      </button>
+      </div>
       <div className="absolute right-1 top-1 flex gap-0.5">
         <button
-          onClick={onEdit}
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
           className="rounded bg-background/80 p-0.5 hover:bg-background"
           aria-label="Edit"
         >
           <Pencil className="h-3 w-3" />
         </button>
         <button
-          onClick={() => workspace.removeSfx(sfx.id)}
+          onClick={(e) => { e.stopPropagation(); workspace.removeSfx(sfx.id); }}
           className="rounded bg-background/80 p-0.5 text-destructive hover:bg-background"
           aria-label="Remove"
         >
