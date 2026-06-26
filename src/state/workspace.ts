@@ -239,6 +239,10 @@ function initial(): WorkspaceState {
     musicMaster: 0.8,
     sfxMaster: 0.9,
     fadeMs: 2000,
+    duck: { ...DEFAULT_DUCK },
+    playlist: { enabled: false, trackIds: [], shuffle: false },
+    scenes: [],
+    activeSceneId: undefined,
   };
 }
 
