@@ -32,7 +32,8 @@ export type PanelType =
   | "mixer"
   | "browser"
   | "music"
-  | "soundboard";
+  | "soundboard"
+  | "scenes";
 
 /** Backwards-compatible alias — some older callers still import PanelId. */
 export type PanelId = PanelType;
@@ -45,6 +46,7 @@ export const PANEL_TYPES: PanelType[] = [
   "browser",
   "music",
   "soundboard",
+  "scenes",
 ];
 /** Alias kept for older code that imported PANEL_IDS. */
 export const PANEL_IDS = PANEL_TYPES;
@@ -58,6 +60,7 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   browser: "Browser",
   music: "Music Board",
   soundboard: "Soundboard",
+  scenes: "Scenes",
 };
 
 /** Per-instance floating-window layout, in % of the workspace container. */
