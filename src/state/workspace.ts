@@ -141,12 +141,17 @@ function initial(): WorkspaceState {
   return {
     pattern,
     mode: "beginner",
-    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser"],
+    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
     layouts: structuredClone(DEFAULT_LAYOUTS),
     palette: "amber",
+    musicTracks: structuredClone(DEFAULT_MUSIC),
+    soundEffects: structuredClone(DEFAULT_SFX),
+    musicMaster: 0.8,
+    sfxMaster: 0.9,
+    fadeMs: 2000,
   };
 }
 
