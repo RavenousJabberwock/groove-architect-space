@@ -16,6 +16,7 @@ interface Props {
 export function ConfigDialog({ open, onClose }: Props) {
   const palette = useWorkspace((s) => s.palette);
   const layouts = useWorkspace((s) => s.layouts);
+  const duck = useWorkspace((s) => s.duck);
 
   if (!open) return null;
   const instances = Object.values(layouts);
