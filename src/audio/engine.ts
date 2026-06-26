@@ -142,6 +142,15 @@ class AudioEngine {
     ch.gain.gain.setTargetAtTime(value, this.ctx.currentTime, 0.01);
   }
 
+  /** Master output gain (pre-limiter). */
+  setMasterGain(value: number) {
+    if (!this.master || !this.ctx) return;
+    this.master.gain.setTargetAtTime(Math.max(0, value), this.ctx.currentTime, 0.01);
+  }
+  getMasterGain(): number {
+    return this.master?.gain.value ?? 0.8;
+  }
+
   /** Called by chaos pad — writes shared synth filter target. */
   setChaosXY(x: number, y: number) {
     // Map X to cutoff (log) and Y to resonance.
