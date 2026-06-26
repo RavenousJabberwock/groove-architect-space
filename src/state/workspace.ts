@@ -105,6 +105,12 @@ export interface MusicTrack {
   url: string;
   volume: number; // 0..1
   loop: boolean;
+  /** Optional keyboard hotkey (e.g. "q", "Shift+1") to toggle this track. */
+  hotkey?: string;
+  /** Optional MIDI note (0..127) that toggles this track. */
+  midiNote?: number;
+  /** Optional MIDI channel filter (0..15); undefined = any channel. */
+  midiChannel?: number;
 }
 
 /** A one-shot sound effect cue. */
@@ -134,6 +140,45 @@ export interface SoundEffect {
   adsr?: SfxAdsr;
   /** synth: oscillator waveform. */
   wave?: OscillatorType;
+  /** Optional keyboard hotkey to fire this pad. */
+  hotkey?: string;
+  /** Optional MIDI note that fires this pad. */
+  midiNote?: number;
+  midiChannel?: number;
+}
+
+/** Sidechain ducking settings — music dips when soundboard pads fire. */
+export interface DuckSettings {
+  enabled: boolean;
+  amount: number; // 0..1, how much to dip
+  attackMs: number;
+  holdMs: number;
+  releaseMs: number;
+}
+
+const DEFAULT_DUCK: DuckSettings = {
+  enabled: true,
+  amount: 0.5,
+  attackMs: 30,
+  holdMs: 120,
+  releaseMs: 400,
+};
+
+/** Playlist auto-crossfade settings. */
+export interface PlaylistSettings {
+  enabled: boolean;
+  trackIds: string[];
+  shuffle: boolean;
+}
+
+/** A named snapshot of music + master state for one-tap scene recall. */
+export interface Scene {
+  id: string;
+  name: string;
+  music: { id: string; volume: number }[];
+  musicMaster: number;
+  sfxMaster: number;
+  capturedAt: number;
 }
 
 export interface WorkspaceState {
@@ -150,6 +195,10 @@ export interface WorkspaceState {
   musicMaster: number; // 0..1
   sfxMaster: number; // 0..1
   fadeMs: number; // default crossfade duration
+  duck: DuckSettings;
+  playlist: PlaylistSettings;
+  scenes: Scene[];
+  activeSceneId?: string;
 }
 
 const DEFAULT_MUSIC: MusicTrack[] = [
