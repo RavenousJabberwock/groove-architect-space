@@ -32,32 +32,11 @@ export function SoundboardPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const trigger = async (s: SoundEffect) => {
-    const vol = s.volume * master;
-    const kind: SfxKind = s.kind ?? "sample";
-    if (kind === "sample") {
-      if (!s.url) {
-        toast.error(`"${s.title}" has no audio yet — edit to add a URL or file`);
-        return;
-      }
-      void mediaPlayer.trigger(s.id, s.url, vol);
-      return;
-    }
-    await boot();
-    if (kind === "midi") {
-      if (!s.midiKind) {
-        toast.error(`"${s.title}" has no MIDI instrument selected`);
-        return;
-      }
-      engine.triggerOneShot(s.midiKind as TrackKind, { velocity: vol });
-      return;
-    }
-    if (kind === "synth") {
-      engine.triggerOneShot("synth", {
-        note: s.note ?? 60,
-        velocity: vol,
-        adsr: s.adsr ?? DEFAULT_ADSR,
-        wave: s.wave ?? "sawtooth",
-      });
+    const ok = await triggerSfx(s);
+    if (!ok) {
+      const kind: SfxKind = s.kind ?? "sample";
+      if (kind === "sample") toast.error(`"${s.title}" has no audio yet — edit to add a URL or file`);
+      else if (kind === "midi") toast.error(`"${s.title}" has no MIDI instrument selected`);
     }
   };
 
