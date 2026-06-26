@@ -105,8 +105,19 @@ export const PALETTES: Palette[] = [
   },
 ];
 
+/** Runtime registry of user-defined palettes, merged with the built-ins. */
+let CUSTOM: Palette[] = [];
+
+export function setCustomPalettes(list: Palette[]) {
+  CUSTOM = list.slice();
+}
+
+export function allPalettes(): Palette[] {
+  return [...PALETTES, ...CUSTOM];
+}
+
 export function applyPalette(id: string) {
-  const p = PALETTES.find((x) => x.id === id) ?? PALETTES[0];
+  const p = allPalettes().find((x) => x.id === id) ?? PALETTES[0];
   const root = document.documentElement;
   for (const [k, v] of Object.entries(p.vars)) {
     root.style.setProperty(k, v);
@@ -114,5 +125,42 @@ export function applyPalette(id: string) {
 }
 
 export function paletteById(id: string): Palette {
-  return PALETTES.find((x) => x.id === id) ?? PALETTES[0];
+  return allPalettes().find((x) => x.id === id) ?? PALETTES[0];
+}
+
+/**
+ * Build a Palette from four user-chosen colors. Maps:
+ *   bg → background/card/panel surfaces
+ *   primary → primary + step-active + ring
+ *   accent → accent + step-playing
+ *   readout → numeric readout glow
+ */
+export function paletteFromColors(opts: {
+  id: string;
+  name: string;
+  description?: string;
+  bg: string;
+  primary: string;
+  accent: string;
+  readout: string;
+}): Palette {
+  const { id, name, description, bg, primary, accent, readout } = opts;
+  return {
+    id,
+    name,
+    description: description ?? "Custom palette",
+    swatch: [bg, primary, accent, readout],
+    vars: {
+      "--background": bg,
+      "--card": bg,
+      "--panel": bg,
+      "--primary": primary,
+      "--primary-foreground": bg,
+      "--accent": accent,
+      "--ring": primary,
+      "--step-active": primary,
+      "--step-playing": accent,
+      "--readout": readout,
+    },
+  };
 }

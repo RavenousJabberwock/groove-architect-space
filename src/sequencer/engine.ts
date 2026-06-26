@@ -37,6 +37,16 @@ export class Sequencer {
     this.masterStep = 0;
   }
 
+  /**
+   * Swap to a new pattern without resetting transport timing. Used by song
+   * mode at bar boundaries so the click track stays continuous.
+   */
+  swapPattern(p: Pattern) {
+    this.pattern = p;
+    this.trackSteps.clear();
+    this.cycle.clear();
+  }
+
   isPlaying() {
     return this.playing;
   }

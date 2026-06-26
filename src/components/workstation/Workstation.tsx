@@ -8,6 +8,8 @@ import { BrowserPanel } from "./Browser";
 import { MusicBoardPanel } from "./MusicBoard";
 import { SoundboardPanel } from "./Soundboard";
 import { ScenesPanel } from "./Scenes";
+import { SongModePanel } from "./SongMode";
+import { TunerPanel } from "./Tuner";
 import { PanelWindow } from "./PanelWindow";
 import { CommandPalette } from "./CommandPalette";
 import {
@@ -31,6 +33,8 @@ const PANEL_COMPONENTS: Record<PanelType, (instanceId: string) => ReactElement> 
   music: () => <MusicBoardPanel />,
   soundboard: () => <SoundboardPanel />,
   scenes: () => <ScenesPanel />,
+  song: () => <SongModePanel />,
+  tuner: () => <TunerPanel />,
 };
 
 /** Returns true if the given instance id is one of the "default" singleton ids. */

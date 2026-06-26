@@ -14,7 +14,8 @@ import { sequencer } from "../sequencer/engine";
 import { midiLearn } from "../midi/learn";
 import { chaos } from "../chaos/pad";
 import { engine, type TrackKind } from "../audio/engine";
-import { applyPalette } from "../themes/palettes";
+import { applyPalette, setCustomPalettes, type Palette } from "../themes/palettes";
+import { songController } from "../song/chain";
 import { mediaPlayer } from "../audio/media-player";
 
 export type Mode = "beginner" | "pro";
@@ -33,7 +34,9 @@ export type PanelType =
   | "browser"
   | "music"
   | "soundboard"
-  | "scenes";
+  | "scenes"
+  | "song"
+  | "tuner";
 
 /** Backwards-compatible alias — some older callers still import PanelId. */
 export type PanelId = PanelType;
@@ -47,6 +50,8 @@ export const PANEL_TYPES: PanelType[] = [
   "music",
   "soundboard",
   "scenes",
+  "song",
+  "tuner",
 ];
 /** Alias kept for older code that imported PANEL_IDS. */
 export const PANEL_IDS = PANEL_TYPES;
@@ -61,6 +66,8 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   music: "Music Board",
   soundboard: "Soundboard",
   scenes: "Scenes",
+  song: "Song Mode",
+  tuner: "Tuner & Metronome",
 };
 
 /** Per-instance floating-window layout, in % of the workspace container. */
@@ -97,6 +104,8 @@ export const DEFAULT_LAYOUTS: Record<string, PanelInstance> = {
   music:      { id: "music",      type: "music",      visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
   soundboard: { id: "soundboard", type: "soundboard", visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
   scenes:     { id: "scenes",     type: "scenes",     visible: false, x: 10,   y: 10,   w: 40,   h: 50,   z: 1 },
+  song:       { id: "song",       type: "song",       visible: false, x: 12,   y: 12,   w: 46,   h: 60,   z: 1 },
+  tuner:      { id: "tuner",      type: "tuner",      visible: false, x: 20,   y: 15,   w: 38,   h: 60,   z: 1 },
 };
 
 /** A streamable, fade-able background music track. */
@@ -184,8 +193,16 @@ export interface Scene {
   capturedAt: number;
 }
 
+/** A chain step in song mode. */
+export interface SongItem { patternId: string; bars: number }
+export interface SongState { enabled: boolean; items: SongItem[] }
+
 export interface WorkspaceState {
   pattern: Pattern;
+  /** Pattern library — saved patterns available to song mode. */
+  patterns: Pattern[];
+  /** Song mode: ordered chain of patterns + bars-per-step. */
+  song: SongState;
   mode: Mode;
   midiBindings: typeof midiLearn.bindings;
   chaosRoutes: typeof chaos.routes;
@@ -193,6 +210,8 @@ export interface WorkspaceState {
   /** Keyed by instance id; each value carries its panel type. */
   layouts: Record<string, PanelInstance>;
   palette: string;
+  /** User-defined palettes appended after the built-ins. */
+  customPalettes: Palette[];
   musicTracks: MusicTrack[];
   soundEffects: SoundEffect[];
   musicMaster: number; // 0..1
@@ -231,12 +250,15 @@ function initial(): WorkspaceState {
   const pattern = defaultPattern();
   return {
     pattern,
+    patterns: [structuredClone(pattern)],
+    song: { enabled: false, items: [] },
     mode: "beginner",
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
     layouts: structuredClone(DEFAULT_LAYOUTS),
     palette: "amber",
+    customPalettes: [],
     musicTracks: structuredClone(DEFAULT_MUSIC),
     soundEffects: structuredClone(DEFAULT_SFX),
     musicMaster: 0.8,
@@ -519,7 +541,86 @@ export const workspace = {
     engine.setTrackSend(id, target, v);
   },
 
-  // ===== Music Board =====
+  // ===== Pattern library + Song mode =====
+  /** Snapshot the current pattern into the library under a new id+name. */
+  savePatternToLibrary(name: string): string {
+    const id = `p-${Math.random().toString(36).slice(2, 8)}`;
+    const snap: Pattern = { ...structuredClone(state.pattern), id, name };
+    workspace.patch((s) => ({ ...s, patterns: [...s.patterns, snap] }));
+    return id;
+  },
+  renamePattern(id: string, name: string) {
+    workspace.patch((s) => ({
+      ...s,
+      patterns: s.patterns.map((p) => (p.id === id ? { ...p, name } : p)),
+      pattern: s.pattern.id === id ? { ...s.pattern, name } : s.pattern,
+    }));
+  },
+  removePatternFromLibrary(id: string) {
+    workspace.patch((s) => ({
+      ...s,
+      patterns: s.patterns.filter((p) => p.id !== id),
+      song: { ...s.song, items: s.song.items.filter((i) => i.patternId !== id) },
+    }));
+  },
+  loadPatternFromLibrary(id: string) {
+    const p = state.patterns.find((x) => x.id === id);
+    if (!p) return;
+    workspace.set((s) => ({ ...s, pattern: structuredClone(p), selectedTrackId: p.tracks[0]?.id ?? "" }));
+  },
+  setSongEnabled(enabled: boolean) {
+    workspace.patch((s) => ({ ...s, song: { ...s.song, enabled } }));
+  },
+  addToSongChain(patternId: string, bars = 2) {
+    workspace.patch((s) => ({
+      ...s,
+      song: { ...s.song, items: [...s.song.items, { patternId, bars: Math.max(1, bars) }] },
+    }));
+  },
+  removeChainItem(idx: number) {
+    workspace.patch((s) => ({
+      ...s,
+      song: { ...s.song, items: s.song.items.filter((_, i) => i !== idx) },
+    }));
+  },
+  setChainBars(idx: number, bars: number) {
+    workspace.patch((s) => ({
+      ...s,
+      song: {
+        ...s.song,
+        items: s.song.items.map((it, i) => (i === idx ? { ...it, bars: Math.max(1, bars) } : it)),
+      },
+    }));
+  },
+  moveChainItem(idx: number, dir: -1 | 1) {
+    workspace.patch((s) => {
+      const items = [...s.song.items];
+      const j = idx + dir;
+      if (j < 0 || j >= items.length) return s;
+      [items[idx], items[j]] = [items[j], items[idx]];
+      return { ...s, song: { ...s.song, items } };
+    });
+  },
+
+  // ===== Custom palettes =====
+  addCustomPalette(p: Palette) {
+    workspace.patch((s) => {
+      const next = [...s.customPalettes.filter((x) => x.id !== p.id), p];
+      setCustomPalettes(next);
+      return { ...s, customPalettes: next };
+    });
+  },
+  removeCustomPalette(id: string) {
+    workspace.patch((s) => {
+      const next = s.customPalettes.filter((x) => x.id !== id);
+      setCustomPalettes(next);
+      const palette = s.palette === id ? "amber" : s.palette;
+      if (s.palette === id) applyPalette("amber");
+      return { ...s, customPalettes: next, palette };
+    });
+  },
+
+
   addMusic(t: Partial<MusicTrack> & { title: string; url: string }) {
     const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
     const track: MusicTrack = {
@@ -681,12 +782,16 @@ export const workspace = {
       const merged: WorkspaceState = {
         ...base,
         ...parsed.state,
+        patterns: parsed.state.patterns ?? base.patterns,
+        song: { ...base.song, ...(parsed.state.song ?? {}) },
+        customPalettes: parsed.state.customPalettes ?? [],
         layouts: migrateLayouts(parsed.state.layouts),
         palette: parsed.state.palette ?? "amber",
         duck: { ...base.duck, ...(parsed.state.duck ?? {}) },
         playlist: { ...base.playlist, ...(parsed.state.playlist ?? {}) },
         scenes: parsed.state.scenes ?? [],
       };
+      setCustomPalettes(merged.customPalettes);
       workspace.set(() => merged);
       applyPalette(merged.palette);
       return true;
@@ -708,6 +813,13 @@ export const workspace = {
 
 // Boot sequencer with default pattern immediately so the UI has a pattern.
 sequencer.load(state.pattern);
+
+// Hook the song controller into the live workspace + sequencer event stream.
+songController.attach(() => ({
+  enabled: state.song.enabled,
+  items: state.song.items,
+  patternById: (id: string) => state.patterns.find((p) => p.id === id) ?? null,
+}));
 
 export function useWorkspace<T>(selector: (s: WorkspaceState) => T): T {
   return useSyncExternalStore(

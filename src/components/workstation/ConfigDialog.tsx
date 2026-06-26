@@ -1,5 +1,6 @@
-import { X, RotateCcw, Plus, Trash2 } from "lucide-react";
-import { PALETTES } from "@/themes/palettes";
+import { useState } from "react";
+import { X, RotateCcw, Plus, Trash2, Palette as PaletteIcon } from "lucide-react";
+import { PALETTES, paletteFromColors } from "@/themes/palettes";
 import {
   workspace,
   useWorkspace,
@@ -15,11 +16,14 @@ interface Props {
 
 export function ConfigDialog({ open, onClose }: Props) {
   const palette = useWorkspace((s) => s.palette);
+  const customPalettes = useWorkspace((s) => s.customPalettes);
   const layouts = useWorkspace((s) => s.layouts);
   const duck = useWorkspace((s) => s.duck);
+  const [showCreator, setShowCreator] = useState(false);
 
   if (!open) return null;
   const instances = Object.values(layouts);
+  const allPals = [...PALETTES, ...customPalettes];
 
   return (
     <div
@@ -44,36 +48,61 @@ export function ConfigDialog({ open, onClose }: Props) {
         </div>
 
         <section className="mb-6">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Palette
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Palette
+            </div>
+            <button
+              onClick={() => setShowCreator((v) => !v)}
+              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] uppercase tracking-wider hover:bg-secondary"
+            >
+              <PaletteIcon className="h-3 w-3" /> {showCreator ? "Done" : "New palette"}
+            </button>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {PALETTES.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => workspace.setPalette(p.id)}
-                className={`flex items-center gap-3 rounded border bg-background p-3 text-left transition hover:border-primary ${
-                  palette === p.id ? "border-primary ring-1 ring-primary" : "border-border"
-                }`}
-              >
-                <div className="flex gap-1">
-                  {p.swatch.map((c, i) => (
-                    <div
-                      key={i}
-                      className="h-6 w-3 rounded-sm border border-black/40"
-                      style={{ background: c }}
-                    />
-                  ))}
+            {allPals.map((p) => {
+              const isCustom = customPalettes.some((c) => c.id === p.id);
+              return (
+                <div
+                  key={p.id}
+                  className={`group relative flex items-center gap-3 rounded border bg-background p-3 text-left transition hover:border-primary ${
+                    palette === p.id ? "border-primary ring-1 ring-primary" : "border-border"
+                  }`}
+                >
+                  <button
+                    onClick={() => workspace.setPalette(p.id)}
+                    className="flex flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="flex gap-1">
+                      {p.swatch.map((c, i) => (
+                        <div
+                          key={i}
+                          className="h-6 w-3 rounded-sm border border-black/40"
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium">{p.name}</div>
+                      <div className="truncate text-[10px] text-muted-foreground">
+                        {p.description}
+                      </div>
+                    </div>
+                  </button>
+                  {isCustom && (
+                    <button
+                      onClick={() => workspace.removeCustomPalette(p.id)}
+                      aria-label="Delete custom palette"
+                      className="rounded p-1 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium">{p.name}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">
-                    {p.description}
-                  </div>
-                </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
+          {showCreator && <CustomPaletteCreator onSave={() => setShowCreator(false)} />}
         </section>
 
         <section className="mb-6">
@@ -240,6 +269,77 @@ function DuckSlider({
         className="flex-1 accent-[var(--color-primary)]"
       />
       <span className="readout w-14 text-right normal-case">{fmt(value)}</span>
+    </label>
+  );
+}
+
+/** Inline creator: name + 4 color pickers → workspace.addCustomPalette. */
+function CustomPaletteCreator({ onSave }: { onSave: () => void }) {
+  const [name, setName] = useState("My Palette");
+  const [bg, setBg] = useState("#0a0a0a");
+  const [primary, setPrimary] = useState("#f0a830");
+  const [accent, setAccent] = useState("#e94f3a");
+  const [readout, setReadout] = useState("#9ef07a");
+
+  const save = () => {
+    if (!name.trim()) return;
+    const id = `custom-${Math.random().toString(36).slice(2, 7)}`;
+    const p = paletteFromColors({ id, name: name.trim(), bg, primary, accent, readout });
+    workspace.addCustomPalette(p);
+    workspace.setPalette(id);
+    onSave();
+  };
+
+  return (
+    <div className="mt-3 rounded border border-border bg-background p-3">
+      <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+        New custom palette
+      </div>
+      <div className="mb-3 flex items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Palette name"
+          className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-2">
+        <ColorField label="Background" value={bg} onChange={setBg} />
+        <ColorField label="Primary"    value={primary} onChange={setPrimary} />
+        <ColorField label="Accent"     value={accent} onChange={setAccent} />
+        <ColorField label="Readout"    value={readout} onChange={setReadout} />
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={save}
+          className="rounded border border-border bg-secondary px-3 py-1 text-[10px] uppercase tracking-wider hover:bg-primary hover:text-primary-foreground"
+        >
+          Add palette
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  label, value, onChange,
+}: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground">
+      <span>{label}</span>
+      <div className="flex items-center gap-1 rounded border border-border bg-background p-1">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+        />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="readout flex-1 rounded bg-background px-1 text-[10px] normal-case"
+        />
+      </div>
     </label>
   );
 }
