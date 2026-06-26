@@ -134,16 +134,19 @@ Shortcuts are ignored while a text input has focus.
 
 ## UI Overview
 
-The workstation defaults to a windowed layout with six panels:
+The workstation defaults to a windowed layout. Every panel is closable, draggable, resizable and persists across sessions.
 
 | Panel        | Purpose                                                      |
 | ------------ | ------------------------------------------------------------ |
 | **Sequencer** | Pattern grid, per-track instrument selection, conditional trigs, transport. |
-| **Drum Machine** | Pad bank for direct triggering and per-voice trim. |
-| **Synth**    | Subtractive synth controls (cutoff, resonance, ADSR).        |
+| **Synth**    | Two-octave piano keyboard. Instrument selector routes keys to the subtractive synth or any percussion voice (drum voices pitch with the key relative to C4). |
 | **Chaos Pad** | XY controller — drag to sweep filter/resonance with live audio. |
-| **Mixer**    | Per-track gain, mute, solo, master.                          |
+| **Mixer**    | Master / Music / SFX masters + per-track gain, mute, solo. |
+| **Music Board** | Background music mixer for RPG ambience: per-track faders, loop toggles, crossfade. |
+| **Soundboard** | Grid of one-shot SFX pads: sample, MIDI percussion, or custom synth. |
 | **Browser**  | Drag-and-drop sample browser (scaffolding for the sampler).  |
+
+> The dedicated **Drums** panel was removed in favour of the Synth panel's percussion-instrument selector plus the Soundboard's MIDI pads — both cover the same use-cases without a duplicate panel.
 
 Every panel can be dragged by its title bar, resized via the bottom-right corner, closed via the `×`, or restored from the **Windows** menu in the top bar. The **Configure** button opens theme selection and layout reset.
 
