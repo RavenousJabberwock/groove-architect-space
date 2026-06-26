@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
-import { Plus, Trash2, Upload, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, Upload, Pencil, Check, X, Keyboard } from "lucide-react";
 import { useWorkspace, workspace, type SoundEffect, type SfxKind } from "@/state/workspace";
-import { mediaPlayer } from "@/audio/media-player";
 import { readId3Title, titleFromUrl } from "@/audio/id3";
-import { engine, ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
-import { boot } from "@/state/setup";
+import { ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
+import { triggerSfx } from "@/audio/triggers";
+import { midiLearn } from "@/midi/learn";
+import { keyEventToHotkey } from "@/hooks/use-pad-triggers";
 import { toast } from "sonner";
 
 /**
