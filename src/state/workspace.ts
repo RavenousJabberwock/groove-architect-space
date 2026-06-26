@@ -294,12 +294,16 @@ export const workspace = {
   },
 
   // ===== Soundboard =====
-  addSfx(t: Omit<SoundEffect, "id"> & { id?: string }) {
+  addSfx(t: Partial<SoundEffect> & { title: string; url: string }) {
     const id = t.id ?? `s-${Math.random().toString(36).slice(2, 8)}`;
-    workspace.patch((s) => ({
-      ...s,
-      soundEffects: [...s.soundEffects, { volume: 0.9, ...t, id }],
-    }));
+    const sfx: SoundEffect = {
+      id,
+      title: t.title,
+      url: t.url,
+      volume: t.volume ?? 0.9,
+      color: t.color,
+    };
+    workspace.patch((s) => ({ ...s, soundEffects: [...s.soundEffects, sfx] }));
   },
   updateSfx(id: string, patch: Partial<SoundEffect>) {
     workspace.patch((s) => ({
