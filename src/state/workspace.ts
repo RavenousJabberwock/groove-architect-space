@@ -263,6 +263,54 @@ export const workspace = {
       },
     }));
   },
+
+  // ===== Music Board =====
+  addMusic(t: Omit<MusicTrack, "id"> & { id?: string }) {
+    const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
+    workspace.patch((s) => ({
+      ...s,
+      musicTracks: [...s.musicTracks, { volume: 0.7, loop: true, ...t, id }],
+    }));
+  },
+  updateMusic(id: string, patch: Partial<MusicTrack>) {
+    workspace.patch((s) => ({
+      ...s,
+      musicTracks: s.musicTracks.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  },
+  removeMusic(id: string) {
+    mediaPlayer.dispose(id);
+    workspace.patch((s) => ({ ...s, musicTracks: s.musicTracks.filter((m) => m.id !== id) }));
+  },
+  setMusicMaster(v: number) {
+    workspace.patch((s) => ({ ...s, musicMaster: Math.max(0, Math.min(1, v)) }));
+  },
+  setFadeMs(ms: number) {
+    workspace.patch((s) => ({ ...s, fadeMs: Math.max(0, ms) }));
+  },
+
+  // ===== Soundboard =====
+  addSfx(t: Omit<SoundEffect, "id"> & { id?: string }) {
+    const id = t.id ?? `s-${Math.random().toString(36).slice(2, 8)}`;
+    workspace.patch((s) => ({
+      ...s,
+      soundEffects: [...s.soundEffects, { volume: 0.9, ...t, id }],
+    }));
+  },
+  updateSfx(id: string, patch: Partial<SoundEffect>) {
+    workspace.patch((s) => ({
+      ...s,
+      soundEffects: s.soundEffects.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  },
+  removeSfx(id: string) {
+    mediaPlayer.dispose(id);
+    workspace.patch((s) => ({ ...s, soundEffects: s.soundEffects.filter((m) => m.id !== id) }));
+  },
+  setSfxMaster(v: number) {
+    workspace.patch((s) => ({ ...s, sfxMaster: Math.max(0, Math.min(1, v)) }));
+  },
+
   subscribe(l: () => void) {
     listeners.add(l);
     return () => listeners.delete(l);
