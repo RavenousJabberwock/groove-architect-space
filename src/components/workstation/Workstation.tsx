@@ -3,7 +3,7 @@ import { TopBar } from "./TopBar";
 import { SequencerPanel } from "./Sequencer";
 import { ChaosPadPanel } from "./ChaosPad";
 import { MixerPanel } from "./Mixer";
-import { DrumMachinePanel } from "./DrumMachine";
+
 import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
 import { MusicBoardPanel } from "./MusicBoard";
