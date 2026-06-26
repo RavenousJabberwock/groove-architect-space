@@ -14,7 +14,8 @@ import { sequencer } from "../sequencer/engine";
 import { midiLearn } from "../midi/learn";
 import { chaos } from "../chaos/pad";
 import { engine, type TrackKind } from "../audio/engine";
-import { applyPalette } from "../themes/palettes";
+import { applyPalette, setCustomPalettes, type Palette } from "../themes/palettes";
+import { songController } from "../song/chain";
 import { mediaPlayer } from "../audio/media-player";
 
 export type Mode = "beginner" | "pro";
@@ -33,7 +34,9 @@ export type PanelType =
   | "browser"
   | "music"
   | "soundboard"
-  | "scenes";
+  | "scenes"
+  | "song"
+  | "tuner";
 
 /** Backwards-compatible alias — some older callers still import PanelId. */
 export type PanelId = PanelType;
@@ -47,6 +50,8 @@ export const PANEL_TYPES: PanelType[] = [
   "music",
   "soundboard",
   "scenes",
+  "song",
+  "tuner",
 ];
 /** Alias kept for older code that imported PANEL_IDS. */
 export const PANEL_IDS = PANEL_TYPES;
@@ -61,6 +66,8 @@ export const PANEL_LABELS: Record<PanelType, string> = {
   music: "Music Board",
   soundboard: "Soundboard",
   scenes: "Scenes",
+  song: "Song Mode",
+  tuner: "Tuner & Metronome",
 };
 
 /** Per-instance floating-window layout, in % of the workspace container. */
@@ -97,6 +104,8 @@ export const DEFAULT_LAYOUTS: Record<string, PanelInstance> = {
   music:      { id: "music",      type: "music",      visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
   soundboard: { id: "soundboard", type: "soundboard", visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
   scenes:     { id: "scenes",     type: "scenes",     visible: false, x: 10,   y: 10,   w: 40,   h: 50,   z: 1 },
+  song:       { id: "song",       type: "song",       visible: false, x: 12,   y: 12,   w: 46,   h: 60,   z: 1 },
+  tuner:      { id: "tuner",      type: "tuner",      visible: false, x: 20,   y: 15,   w: 38,   h: 60,   z: 1 },
 };
 
 /** A streamable, fade-able background music track. */
