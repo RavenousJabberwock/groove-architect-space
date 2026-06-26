@@ -265,12 +265,16 @@ export const workspace = {
   },
 
   // ===== Music Board =====
-  addMusic(t: Omit<MusicTrack, "id"> & { id?: string }) {
+  addMusic(t: Partial<MusicTrack> & { title: string; url: string }) {
     const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
-    workspace.patch((s) => ({
-      ...s,
-      musicTracks: [...s.musicTracks, { volume: 0.7, loop: true, ...t, id }] as MusicTrack[],
-    }));
+    const track: MusicTrack = {
+      id,
+      title: t.title,
+      url: t.url,
+      volume: t.volume ?? 0.7,
+      loop: t.loop ?? true,
+    };
+    workspace.patch((s) => ({ ...s, musicTracks: [...s.musicTracks, track] }));
   },
   updateMusic(id: string, patch: Partial<MusicTrack>) {
     workspace.patch((s) => ({
