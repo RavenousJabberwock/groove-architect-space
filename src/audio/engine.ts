@@ -184,7 +184,10 @@ class AudioEngine {
         wave: opts.wave,
       });
     } else {
-      createDrumVoice(this.ctx, this.master, kind, { time, velocity });
+      // For percussion: `note` (when provided) pitches the voice relative
+      // to MIDI 60. The Soundboard's MIDI-kind pads omit `note` so the
+      // voice plays at its natural pitch.
+      createDrumVoice(this.ctx, this.master, kind, { time, velocity, note: opts.note });
     }
   }
 
