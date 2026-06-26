@@ -95,13 +95,15 @@ class AudioEngine {
         });
       };
     } else {
-      trigger = (time, { note, velocity, pLocks }) => {
+      // Sequencer drum trigger. `note` from the bus is the track's MIDI
+      // channel-note (e.g. 36 = kick) used for MIDI-out routing, NOT a pitch.
+      // Per-step retuning is done via a `tune` p-lock; the Synth panel pitches
+      // percussion through `triggerOneShot` instead.
+      trigger = (time, { velocity, pLocks }) => {
         createDrumVoice(ctx, filter, kind, {
           time,
           velocity,
-          // pLock takes precedence; otherwise derive pitch from incoming note.
-          tune: pLocks?.tune,
-          note,
+          tune: pLocks?.tune ?? 0,
         });
       };
     }
