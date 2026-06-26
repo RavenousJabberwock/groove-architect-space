@@ -32,9 +32,6 @@ export function Workstation() {
           <PanelWindow id="sequencer" title="Sequencer">
             <SequencerPanel />
           </PanelWindow>
-          <PanelWindow id="drum" title="Drums">
-            <DrumMachinePanel />
-          </PanelWindow>
           <PanelWindow id="synth" title="Synth">
             <SynthPanel />
           </PanelWindow>
