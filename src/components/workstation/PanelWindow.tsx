@@ -1,18 +1,21 @@
 import { useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
-import { workspace, useWorkspace, type PanelId } from "@/state/workspace";
+import { workspace, useWorkspace } from "@/state/workspace";
 
 interface Props {
-  id: PanelId;
+  /** Instance id within workspace.layouts. */
+  id: string;
   title: string;
   children: ReactNode;
+  /** When true, the close button removes the instance entirely instead of just hiding it. */
+  removable?: boolean;
 }
 
 /**
  * Floating, draggable workstation panel.
  * Position/size/visibility/z-order come from workspace.layouts[id] (in % of container).
  */
-export function PanelWindow({ id, title, children }: Props) {
+export function PanelWindow({ id, title, children, removable }: Props) {
   const layout = useWorkspace((s) => s.layouts[id]);
   const root = useRef<HTMLDivElement>(null);
 
@@ -70,6 +73,8 @@ export function PanelWindow({ id, title, children }: Props) {
     window.addEventListener("pointerup", onUp);
   };
 
+  const displayTitle = layout.title || title;
+
   return (
     <div
       ref={root}
@@ -87,13 +92,19 @@ export function PanelWindow({ id, title, children }: Props) {
         onPointerDown={onDragStart}
         className="flex h-6 shrink-0 cursor-grab items-center justify-between border-b border-border bg-card/60 px-2 active:cursor-grabbing"
       >
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          {title}
+        <span
+          className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+          title={displayTitle}
+        >
+          {displayTitle}
         </span>
         <button
           data-no-drag
-          onClick={() => workspace.setPanelVisible(id, false)}
-          aria-label={`Close ${title}`}
+          onClick={() => {
+            if (removable) workspace.removePanelInstance(id);
+            else workspace.setPanelVisible(id, false);
+          }}
+          aria-label={`Close ${displayTitle}`}
           className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         >
           <X className="h-3 w-3" />

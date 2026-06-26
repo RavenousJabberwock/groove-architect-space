@@ -170,7 +170,16 @@ class AudioEngine {
    */
   triggerOneShot(
     kind: TrackKind,
-    opts: { note?: number; velocity?: number; adsr?: ADSR; wave?: OscillatorType } = {},
+    opts: {
+      note?: number;
+      velocity?: number;
+      adsr?: ADSR;
+      wave?: OscillatorType;
+      /** Override the subtractive filter cutoff (Hz). Defaults to chaosCutoff. */
+      cutoff?: number;
+      /** Override the subtractive filter resonance (Q). Defaults to chaosResonance. */
+      resonance?: number;
+    } = {},
   ) {
     if (!this.ctx || !this.master) return;
     const time = this.now();
@@ -180,8 +189,8 @@ class AudioEngine {
         note: opts.note ?? 60,
         velocity,
         time,
-        cutoff: this.chaosCutoff,
-        resonance: this.chaosResonance,
+        cutoff: opts.cutoff ?? this.chaosCutoff,
+        resonance: opts.resonance ?? this.chaosResonance,
         adsr: opts.adsr,
         wave: opts.wave,
       });
