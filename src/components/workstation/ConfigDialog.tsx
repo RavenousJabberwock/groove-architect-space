@@ -273,3 +273,74 @@ function DuckSlider({
   );
 }
 
+/** Inline creator: name + 4 color pickers → workspace.addCustomPalette. */
+function CustomPaletteCreator({ onSave }: { onSave: () => void }) {
+  const [name, setName] = useState("My Palette");
+  const [bg, setBg] = useState("#0a0a0a");
+  const [primary, setPrimary] = useState("#f0a830");
+  const [accent, setAccent] = useState("#e94f3a");
+  const [readout, setReadout] = useState("#9ef07a");
+
+  const save = () => {
+    if (!name.trim()) return;
+    const id = `custom-${Math.random().toString(36).slice(2, 7)}`;
+    const p = paletteFromColors({ id, name: name.trim(), bg, primary, accent, readout });
+    workspace.addCustomPalette(p);
+    workspace.setPalette(id);
+    onSave();
+  };
+
+  return (
+    <div className="mt-3 rounded border border-border bg-background p-3">
+      <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+        New custom palette
+      </div>
+      <div className="mb-3 flex items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Palette name"
+          className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-2">
+        <ColorField label="Background" value={bg} onChange={setBg} />
+        <ColorField label="Primary"    value={primary} onChange={setPrimary} />
+        <ColorField label="Accent"     value={accent} onChange={setAccent} />
+        <ColorField label="Readout"    value={readout} onChange={setReadout} />
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={save}
+          className="rounded border border-border bg-secondary px-3 py-1 text-[10px] uppercase tracking-wider hover:bg-primary hover:text-primary-foreground"
+        >
+          Add palette
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  label, value, onChange,
+}: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] uppercase text-muted-foreground">
+      <span>{label}</span>
+      <div className="flex items-center gap-1 rounded border border-border bg-background p-1">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+        />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="readout flex-1 rounded bg-background px-1 text-[10px] normal-case"
+        />
+      </div>
+    </label>
+  );
+}
+
