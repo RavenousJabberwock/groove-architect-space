@@ -1,83 +1,65 @@
-# Feature batch: Scenes, Ducking, Playlist, Triggers
+Tackling every remaining enhancement from the earlier list across three batches. Each batch is self-contained so the build stays green between them.
 
-## 1. Scenes / snapshots (RPG one-click recall)
+## Batch 1 — Workflow polish
 
-A scene captures: which music tracks are playing + their volumes, music/sfx master levels, and (optionally) the current pattern. Recall fades old music out and new music in over the global Fade time.
+**Undo/redo**
+- Wrap `workspace.set` in `src/state/workspace.ts` with a 50-entry ring buffer. Add `undo()` / `redo()` and `canUndo` / `canRedo` selectors.
+- Coalesce rapid edits (slider drags) by debouncing pushes 250 ms.
+- Bind ⌘Z / ⌘⇧Z (and Ctrl variants) in `src/hooks/use-keyboard-shortcuts.ts`; ignore while typing.
+- Toast "Undid <last action label>" using an action tag passed to `workspace.set`.
 
-**Data model (`src/state/workspace.ts`):**
-```ts
-interface Scene {
-  id: string;
-  name: string;       // "Tavern", "Combat", "Boss"
-  music: { id: string; volume: number }[];  // tracks to play
-  musicMaster: number;
-  sfxMaster: number;
-  capturedAt: number;
-}
-state.scenes: Scene[];
-state.activeSceneId?: string;
-```
+**Command palette (⌘K)**
+- New `src/components/workstation/CommandPalette.tsx` using a shadcn `Command` dialog.
+- Registry built from live state: open/close any panel, recall any scene, trigger any music track or SFX pad, run global actions (capture scene, toggle playlist/shuffle, undo/redo, master volume presets).
+- Global hotkey ⌘K / Ctrl K mounted from `Workstation.tsx`.
 
-**Methods:** `captureScene(name)`, `recallScene(id)` (stops non-listed music with fadeMs, starts listed music with crossfade), `renameScene`, `removeScene`.
+**Per-track EQ + meters in Mixer**
+- Extend `src/audio/media-player.ts` to route each element through a `MediaElementAudioSourceNode → BiquadFilter (low shelf) → Biquad (peaking mid) → Biquad (high shelf) → Gain → AnalyserNode → destination`. Lazy-build the graph on first play.
+- Store `eq: { low: number; mid: number; high: number }` per `MusicTrack` and `SoundEffect` in workspace.
+- Mixer strips gain three compact dB knobs + a vertical peak meter driven by rAF reading `getFloatTimeDomainData`. Meter peak-hold for 800 ms.
 
-**UI:** New `Scenes` panel (`src/components/workstation/Scenes.tsx`) registered as a new `PanelType`. Grid of named tiles — click to recall, long-press/edit to rename, "Capture current" button at top. Active scene highlighted.
+## Batch 2 — Sound design
 
-## 2. Sidechain ducking (music dips when SFX fires)
+**Reverb + delay send buses**
+- New `src/audio/buses.ts`: build a shared `ConvolverNode` (synthesized impulse) for reverb and a `DelayNode` + feedback `Gain` for delay, both terminated at master.
+- Each track's `MediaElementAudioSourceNode` gets two extra `Gain` taps feeding the buses. Per-track `sends: { reverb: number; delay: number }` controls.
+- Mixer adds two small send knobs per strip and a global "FX" section with reverb size/decay and delay time/feedback sliders.
 
-When any soundboard pad triggers, briefly lower the music master so the effect cuts through.
+**Randomized ambient triggers**
+- `SoundEffect` gains `auto?: { enabled: boolean; minMs: number; maxMs: number }`.
+- `src/hooks/use-pad-triggers.ts` schedules a per-pad `setTimeout` in `[minMs, maxMs]` whenever `auto.enabled` is true, calling `triggerSfx` then rescheduling.
+- Soundboard pad editor exposes Auto toggle + min/max sliders.
 
-**Engine (`src/audio/media-player.ts`):** add a `duckMultiplier` (0..1, default 1) applied on top of per-track volume. `mediaPlayer.duck({ amount, attackMs, holdMs, releaseMs })` schedules: ramp multiplier from 1→`1-amount` over attack, hold, then ramp back. While ducked, `setVolume` calls keep multiplier intact.
+**Note repeat / roll**
+- `Synth.tsx` adds a "Repeat" toggle with rate selector (1/4, 1/8T, 1/16, 1/32) and gate %.
+- While held, an interval retriggers `engine.triggerOneShot` using the currently held key/velocity. Releasing the key stops its interval.
+- Plays nicely with the existing pitch-adjusted MIDI percussion path.
 
-**Wire-up (`src/components/workstation/Soundboard.tsx`):** call `mediaPlayer.duck(...)` inside `trigger()` using workspace settings.
+## Batch 3 — Composition depth
 
-**Settings (`src/state/workspace.ts` + `ConfigDialog.tsx`):**
-```ts
-duck: { enabled: boolean; amount: number; attackMs: number; holdMs: number; releaseMs: number }
-```
-Sliders in Configure dialog under a new "Sidechain Ducking" section.
+**Per-pattern swing + quantize**
+- Add `swing: number` (0–0.66) and `humanize: number` (ms jitter) to `Pattern` in `src/sequencer/types.ts`.
+- `src/sequencer/engine.ts` offsets every other 16th by `swing * stepDur` and adds ± random `humanize` ms inside the existing scheduler.
+- Sequencer panel header gains two compact sliders.
 
-## 3. Playlist with auto-crossfade
+**Pattern chaining / song mode**
+- Workspace gains `song: { enabled: boolean; steps: { patternId: string; bars: number }[]; cursor: number }`.
+- Sequencer engine, when `song.enabled`, switches the active pattern at bar boundaries based on `steps`.
+- New `SongMode.tsx` panel: ordered list of pattern chips with bar counts, add/remove/reorder, play/stop. Registered as a new `PanelType`.
 
-Music Board gains a `Playlist` toggle. When on, the player listens for `ended` (or near-end timeupdate, since `loop` overrides `ended`) and crossfades to the next track in `playlist.trackIds`. Loop is forced off while playlist mode is active.
+**Piano roll for the synth**
+- Promote each synth instance to own a `notes: { startStep, durSteps, midi, velocity }[]` array stored on the panel's instance state (extend `PanelInstance` in `workspace.ts`).
+- New `PianoRoll.tsx` panel showing a scrollable grid (vertical = MIDI 36–96, horizontal = 32 steps). Click-drag to place, drag edges to resize, right-click to delete.
+- The sequencer scheduler plays these notes through `engine.triggerOneShot("synth", …)` using the instance's preset.
+- Existing fixed-step trigger row stays for users who prefer it; piano roll is opened from the synth panel's header button "Roll".
 
-**Data model:**
-```ts
-state.playlist: { enabled: boolean; trackIds: string[]; shuffle: boolean }
-```
+## Technical notes
 
-**Implementation:** `MusicBoard.tsx` watches the playing track's element via `timeupdate`; when `duration - currentTime < fadeMs/1000`, it crossfades to the next track in `trackIds` (advancing the cursor, wrapping at end, shuffling once per cycle). A toggle button in the header turns it on/off; a drag-to-reorder list (simple up/down arrows for v1) under the toggle controls order.
+- All new state slices are additive — existing serialized workspaces deserialize fine because missing fields default in `state/workspace.ts` migrations.
+- Audio graph upgrade in batch 1 is the riskiest piece; it changes how `<audio>` elements feed master. I'll keep the legacy `el.volume` path as the fallback when `AudioContext` isn't unlocked yet (some browsers require a user gesture) and switch to graph mode after the first `boot()`.
+- Send buses and meters share the same audio graph upgrade, so batch 2 builds directly on batch 1.
+- No new external deps required; everything uses existing WebAudio + shadcn `Command`.
 
-## 4. Per-pad hotkeys + MIDI note triggers
+## Out of scope (kept from earlier list for later)
 
-Every Music track and every SFX pad can be bound to a keyboard key and/or a MIDI note. Pressing the key (or receiving note-on) triggers the pad. SFX = one-shot; Music = toggle play/stop with crossfade.
-
-**Data model additions:**
-```ts
-MusicTrack: { hotkey?: string; midiNote?: number; midiChannel?: number }
-SoundEffect: { hotkey?: string; midiNote?: number; midiChannel?: number }
-```
-
-**Router (`src/hooks/use-pad-triggers.ts`):** new global hook mounted from `Workstation.tsx`. Listens to:
-- `window` keydown — match against `hotkey` strings (e.g. `"q"`, `"Shift+1"`); ignore while typing in inputs.
-- `bus.on("midi:message")` for note-on (`status & 0xf0 === 0x90`, velocity > 0) — match against `midiNote` (+optional channel).
-
-When matched: SFX → call the same trigger logic Soundboard uses (extract to `src/audio/triggers.ts` so both can share); Music → toggle via mediaPlayer with crossfade.
-
-**Learn UI:**
-- `MusicBoard.tsx` row gains a compact "K: Q · M: ―" pill with a "Learn" button. Click → next keypress / midi note is captured and stored. Esc cancels.
-- `Soundboard.tsx` edit panel gains the same Hotkey + MIDI Learn fields.
-
-**MIDI capture:** extend `midi/learn.ts` with an `armNote(target)` method (parallel to existing `arm` for CC), and have the router subscribe to a new `bus` event `midi:learn-note`.
-
-## 5. Shared trigger helper
-
-`src/audio/triggers.ts` — pure function `triggerSfx(sfx)` and `toggleMusic(track)` consolidated from current Soundboard / MusicBoard logic so the new global hook and existing UI both call the same code.
-
-## Files
-
-**New:** `src/components/workstation/Scenes.tsx`, `src/audio/triggers.ts`, `src/hooks/use-pad-triggers.ts`
-
-**Edited:** `src/state/workspace.ts` (Scene, Playlist, Duck, hotkey/midiNote fields + methods), `src/audio/media-player.ts` (duck), `src/midi/learn.ts` (armNote), `src/audio/bus.ts` (midi:learn-note event), `src/components/workstation/Workstation.tsx` (mount hook, register Scenes panel), `src/components/workstation/MusicBoard.tsx` (playlist toggle, hotkey UI, use shared trigger), `src/components/workstation/Soundboard.tsx` (hotkey UI, use shared trigger, duck call), `src/components/workstation/ConfigDialog.tsx` (Ducking section), `src/components/workstation/TopBar.tsx` (scene quick-recall dropdown — optional), `README.md` (document).
-
-## Out of scope for this batch
-Randomized ambient triggers, per-track EQ/meters, undo/redo, command palette, drag-to-reorder polish. Easy follow-ups once this lands.
+Streaming sources (YouTube/SoundCloud embeds), cloud share/export, themeable per-panel colors, velocity layers/aftertouch on the soundboard.

@@ -10,6 +10,13 @@
  *  - "FILL": fires only when fill mode is engaged
  *  - "PRE": fires if previous step in track fired
  *  - "NEI": fires if neighbouring (previous) track fired
+ *
+ * Per-track mixing extras (all optional, default-safe):
+ *  - swing     : 0..0.66 — extra offset on odd 16ths on top of the
+ *                pattern-wide swing.
+ *  - humanize  : 0..40 ms — random ± jitter applied to every fired step.
+ *  - sends     : reverb/delay bus send levels (0..1).
+ *  - eq        : low/mid/high shelf gain in dB (-12..+12).
  */
 
 export type Condition = null | "1:2" | "2:2" | "FILL" | "PRE" | "NEI";
@@ -25,6 +32,17 @@ export interface Step {
   note?: number;
 }
 
+export interface TrackSends {
+  reverb: number;
+  delay: number;
+}
+
+export interface TrackEq {
+  low: number;  // dB
+  mid: number;  // dB
+  high: number; // dB
+}
+
 export interface Track {
   id: string;
   name: string;
@@ -37,6 +55,12 @@ export interface Track {
   solo: boolean;
   midiNote: number;
   midiChannel: number;
+  /** Extra per-track swing (0..0.66) layered on top of pattern.swing. */
+  swing?: number;
+  /** Random timing jitter in ms (± half-range). */
+  humanize?: number;
+  sends?: TrackSends;
+  eq?: TrackEq;
 }
 
 export interface Pattern {
@@ -71,4 +95,8 @@ export const makeTrack = (
   solo: false,
   midiNote,
   midiChannel,
+  swing: 0,
+  humanize: 0,
+  sends: { reverb: 0, delay: 0 },
+  eq: { low: 0, mid: 0, high: 0 },
 });

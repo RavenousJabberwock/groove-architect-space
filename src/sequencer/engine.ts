@@ -90,14 +90,13 @@ export class Sequencer {
 
     const anySolo = this.pattern.tracks.some((t) => t.solo);
     let neighborFiredThisStep = false;
+    const spStep = this.secondsPerStep();
 
     for (const track of this.pattern.tracks) {
       if (track.mute) continue;
       if (anySolo && !track.solo) continue;
 
-      // Polyrhythm: advance per-track on each master step scaled by 1/divisor.
       const tStepCounter = this.trackSteps.get(track.id) ?? 0;
-      // Skip ticks if divisor > 1
       if (track.divisor > 1 && this.masterStep % Math.round(track.divisor) !== 0) {
         continue;
       }
@@ -118,10 +117,22 @@ export class Sequencer {
         continue;
       }
 
+      // Per-track timing — extra swing on odd steps + ± humanize jitter.
+      let fireTime = time;
+      const perTrackSwing = track.swing ?? 0;
+      if (perTrackSwing > 0 && this.masterStep % 2 === 1) {
+        fireTime += spStep * perTrackSwing;
+      }
+      const humanize = track.humanize ?? 0;
+      if (humanize > 0) {
+        fireTime += (Math.random() - 0.5) * (humanize / 1000);
+      }
+      if (fireTime < this.pattern!.bpm * 0) fireTime = time; // guard
+
       const note = step.note ?? track.midiNote;
       bus.emit("step:trigger", {
         trackId: track.id,
-        time,
+        time: Math.max(time - 0.001, fireTime),
         velocity: step.velocity,
         note,
         pLocks: step.pLocks,

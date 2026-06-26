@@ -135,25 +135,47 @@ export function SequencerPanel() {
                 })}
               </div>
               {mode === "pro" && (
-                <input
-                  type="number"
-                  min={1}
-                  max={32}
-                  value={track.length}
-                  onChange={(e) =>
-                    workspace.set((s) => ({
-                      ...s,
-                      pattern: {
-                        ...s.pattern,
-                        tracks: s.pattern.tracks.map((t) =>
-                          t.id === track.id ? { ...t, length: Number(e.target.value) } : t,
-                        ),
-                      },
-                    }))
-                  }
-                  className="readout w-10 rounded border border-border bg-background px-1 py-0.5 text-right text-[10px]"
-                  title="Track length (polymeter)"
-                />
+                <>
+                  <input
+                    type="number"
+                    min={1}
+                    max={32}
+                    value={track.length}
+                    onChange={(e) =>
+                      workspace.set((s) => ({
+                        ...s,
+                        pattern: {
+                          ...s.pattern,
+                          tracks: s.pattern.tracks.map((t) =>
+                            t.id === track.id ? { ...t, length: Number(e.target.value) } : t,
+                          ),
+                        },
+                      }))
+                    }
+                    className="readout w-10 rounded border border-border bg-background px-1 py-0.5 text-right text-[10px]"
+                    title="Track length (polymeter)"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.66}
+                    step={0.01}
+                    value={track.swing ?? 0}
+                    onChange={(e) => workspace.setTrackSwing(track.id, Number(e.target.value))}
+                    className="w-12 accent-[var(--color-primary)]"
+                    title={`Per-track swing: ${Math.round((track.swing ?? 0) * 100)}%`}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={40}
+                    step={1}
+                    value={track.humanize ?? 0}
+                    onChange={(e) => workspace.setTrackHumanize(track.id, Number(e.target.value))}
+                    className="w-12 accent-[var(--color-accent)]"
+                    title={`Humanize: ±${(track.humanize ?? 0).toFixed(0)}ms`}
+                  />
+                </>
               )}
             </div>
           );

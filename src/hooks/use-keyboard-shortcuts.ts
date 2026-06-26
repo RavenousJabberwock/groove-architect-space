@@ -80,6 +80,18 @@ export function useKeyboardShortcuts() {
         workspace.load() ? toast.success("Workspace loaded") : toast.error("No saved workspace");
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
+        e.preventDefault();
+        const ok = e.shiftKey ? workspace.redo() : workspace.undo();
+        toast(ok ? (e.shiftKey ? "Redo" : "Undo") : "Nothing to " + (e.shiftKey ? "redo" : "undo"), { duration: 500 });
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.code === "KeyY") {
+        e.preventDefault();
+        const ok = workspace.redo();
+        toast(ok ? "Redo" : "Nothing to redo", { duration: 500 });
+        return;
+      }
       if (e.metaKey || e.ctrlKey) return;
 
       switch (e.code) {

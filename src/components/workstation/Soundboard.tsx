@@ -296,6 +296,10 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
         onChange={(patch) => workspace.updateSfx(sfx.id, patch)}
       />
 
+      <AutoTriggerField sfx={sfx} />
+
+
+
 
       <div className="flex gap-1">
         <button
@@ -311,6 +315,54 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
           <X className="h-3 w-3" />
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Per-pad random auto-trigger controls. When enabled, the pad-triggers hook
+ * schedules a `triggerSfx` call after a random delay in [min, max] ms.
+ * Perfect for ambient cues (distant thunder, wolf howls, dripping water).
+ */
+function AutoTriggerField({ sfx }: { sfx: SoundEffect }) {
+  const auto = sfx.auto ?? { enabled: false, minMs: 20000, maxMs: 60000 };
+  const set = (patch: Partial<NonNullable<SoundEffect["auto"]>>) =>
+    workspace.updateSfx(sfx.id, { auto: { ...auto, ...patch } });
+  return (
+    <div className="rounded border border-border p-1.5">
+      <label className="flex items-center gap-2 text-[10px] uppercase">
+        <input
+          type="checkbox"
+          checked={auto.enabled}
+          onChange={(e) => set({ enabled: e.target.checked })}
+          className="accent-[var(--color-primary)]"
+        />
+        Auto-fire randomly
+      </label>
+      {auto.enabled && (
+        <div className="mt-1 space-y-1">
+          <label className="flex items-center gap-2 text-[10px] uppercase">
+            <span className="w-8 text-muted-foreground">Min</span>
+            <input
+              type="range" min={1000} max={120000} step={500}
+              value={auto.minMs}
+              onChange={(e) => set({ minMs: Number(e.target.value) })}
+              className="flex-1 accent-[var(--color-primary)]"
+            />
+            <span className="readout w-12 text-right normal-case">{(auto.minMs / 1000).toFixed(1)}s</span>
+          </label>
+          <label className="flex items-center gap-2 text-[10px] uppercase">
+            <span className="w-8 text-muted-foreground">Max</span>
+            <input
+              type="range" min={2000} max={300000} step={500}
+              value={auto.maxMs}
+              onChange={(e) => set({ maxMs: Number(e.target.value) })}
+              className="flex-1 accent-[var(--color-primary)]"
+            />
+            <span className="readout w-12 text-right normal-case">{(auto.maxMs / 1000).toFixed(1)}s</span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }
