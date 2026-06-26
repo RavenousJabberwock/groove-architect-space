@@ -96,6 +96,7 @@ export const DEFAULT_LAYOUTS: Record<string, PanelInstance> = {
   browser:    { id: "browser",    type: "browser",    visible: false, x: 87.7, y: 0.3,  w: 12.0, h: 49.5, z: 1 },
   music:      { id: "music",      type: "music",      visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
   soundboard: { id: "soundboard", type: "soundboard", visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
+  scenes:     { id: "scenes",     type: "scenes",     visible: false, x: 10,   y: 10,   w: 40,   h: 50,   z: 1 },
 };
 
 /** A streamable, fade-able background music track. */
@@ -478,6 +479,87 @@ export const workspace = {
   },
   setSfxMaster(v: number) {
     workspace.patch((s) => ({ ...s, sfxMaster: Math.max(0, Math.min(1, v)) }));
+  },
+
+  // ===== Sidechain ducking =====
+  setDuck(patch: Partial<DuckSettings>) {
+    workspace.patch((s) => ({ ...s, duck: { ...s.duck, ...patch } }));
+  },
+
+  // ===== Playlist =====
+  setPlaylist(patch: Partial<PlaylistSettings>) {
+    workspace.patch((s) => ({ ...s, playlist: { ...s.playlist, ...patch } }));
+  },
+
+  // ===== Scenes =====
+  /**
+   * Capture the currently-playing music + master state as a named scene.
+   * If `name` matches an existing scene, that scene is overwritten.
+   */
+  captureScene(name: string): string {
+    const s = workspace.get();
+    const playing = s.musicTracks
+      .filter((t) => mediaPlayer.isPlaying(t.id))
+      .map((t) => ({ id: t.id, volume: t.volume }));
+    const existing = s.scenes.find((x) => x.name === name);
+    const id = existing?.id ?? `scene-${Math.random().toString(36).slice(2, 8)}`;
+    const scene: Scene = {
+      id,
+      name,
+      music: playing,
+      musicMaster: s.musicMaster,
+      sfxMaster: s.sfxMaster,
+      capturedAt: Date.now(),
+    };
+    workspace.patch((cur) => {
+      const without = cur.scenes.filter((x) => x.id !== id);
+      return { ...cur, scenes: [...without, scene], activeSceneId: id };
+    });
+    return id;
+  },
+  renameScene(id: string, name: string) {
+    workspace.patch((s) => ({
+      ...s,
+      scenes: s.scenes.map((x) => (x.id === id ? { ...x, name } : x)),
+    }));
+  },
+  removeScene(id: string) {
+    workspace.patch((s) => ({
+      ...s,
+      scenes: s.scenes.filter((x) => x.id !== id),
+      activeSceneId: s.activeSceneId === id ? undefined : s.activeSceneId,
+    }));
+  },
+  /**
+   * Recall a scene: stop any music not in the scene (with fadeMs), start
+   * scene tracks (with crossfade). Master levels are restored.
+   */
+  recallScene(id: string) {
+    const s = workspace.get();
+    const scene = s.scenes.find((x) => x.id === id);
+    if (!scene) return;
+    const fadeMs = s.fadeMs;
+    const wantIds = new Set(scene.music.map((m) => m.id));
+    for (const tr of s.musicTracks) {
+      if (mediaPlayer.isPlaying(tr.id) && !wantIds.has(tr.id)) {
+        mediaPlayer.stop(tr.id, fadeMs);
+      }
+    }
+    workspace.patch((cur) => ({
+      ...cur,
+      musicMaster: scene.musicMaster,
+      sfxMaster: scene.sfxMaster,
+      activeSceneId: id,
+    }));
+    for (const cue of scene.music) {
+      const tr = s.musicTracks.find((m) => m.id === cue.id);
+      if (!tr || !tr.url) continue;
+      void mediaPlayer.play(tr.id, tr.url, {
+        volume: cue.volume * scene.musicMaster,
+        loop: tr.loop,
+        fadeMs,
+      });
+    }
   },
 
   subscribe(l: () => void) {
