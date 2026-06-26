@@ -166,7 +166,7 @@ function initial(): WorkspaceState {
   return {
     pattern,
     mode: "beginner",
-    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
+    panelOrder: ["sequencer", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
