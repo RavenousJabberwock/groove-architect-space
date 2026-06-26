@@ -95,8 +95,14 @@ class AudioEngine {
         });
       };
     } else {
-      trigger = (time, { velocity, pLocks }) => {
-        createDrumVoice(ctx, filter, kind, { time, velocity, tune: pLocks?.tune ?? 0 });
+      trigger = (time, { note, velocity, pLocks }) => {
+        createDrumVoice(ctx, filter, kind, {
+          time,
+          velocity,
+          // pLock takes precedence; otherwise derive pitch from incoming note.
+          tune: pLocks?.tune,
+          note,
+        });
       };
     }
 
