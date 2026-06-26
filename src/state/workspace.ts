@@ -146,6 +146,8 @@ export interface SoundEffect {
   /** Optional MIDI note that fires this pad. */
   midiNote?: number;
   midiChannel?: number;
+  /** Randomized auto-trigger schedule (ambient pads). */
+  auto?: { enabled: boolean; minMs: number; maxMs: number };
 }
 
 /** Sidechain ducking settings — music dips when soundboard pads fire. */
@@ -254,6 +256,21 @@ function notify() {
   for (const l of listeners) l();
 }
 
+// ===== Undo / redo history =====
+// Snapshot strategy: every full `set` (heavy edit) pushes the *previous* state
+// onto the past stack. `patch` mutations (panel drags, slider scrubs) are
+// noisy and intentionally NOT recorded; explicit `pushHistory()` is available
+// when a patch represents a meaningful change (delete pad, capture scene, …).
+const HISTORY_LIMIT = 80;
+const past: WorkspaceState[] = [];
+const future: WorkspaceState[] = [];
+
+function recordHistory(prev: WorkspaceState) {
+  past.push(prev);
+  if (past.length > HISTORY_LIMIT) past.shift();
+  future.length = 0; // any new edit truncates the redo branch
+}
+
 /**
  * Migrate a legacy `layouts` object (keyed by PanelType with no `id`/`type`
  * fields) into the new shape. Safe to call on already-migrated values.
@@ -280,23 +297,76 @@ function migrateLayouts(input: unknown): Record<string, PanelInstance> {
   }
   return out;
 }
+/** Push every track's EQ + send levels back into the live audio engine. */
+function syncMixToEngine() {
+  for (const t of state.pattern.tracks) {
+    if (t.eq) {
+      engine.setTrackEq(t.id, "low", t.eq.low);
+      engine.setTrackEq(t.id, "mid", t.eq.mid);
+      engine.setTrackEq(t.id, "high", t.eq.high);
+    }
+    if (t.sends) {
+      engine.setTrackSend(t.id, "reverb", t.sends.reverb);
+      engine.setTrackSend(t.id, "delay", t.sends.delay);
+    }
+  }
+}
 
 export const workspace = {
   get(): WorkspaceState {
     return state;
   },
   set(updater: (s: WorkspaceState) => WorkspaceState) {
+    const prev = state;
     state = updater(state);
+    if (state !== prev) recordHistory(prev);
     sequencer.load(state.pattern);
     midiLearn.bindings = state.midiBindings;
     chaos.routes = state.chaosRoutes;
     engine.syncTracks(state.pattern.tracks.map((t) => ({ id: t.id, kind: t.kind as TrackKind })));
+    syncMixToEngine();
     notify();
   },
   /** Lightweight update that does not re-sync audio/sequencer subsystems. */
   patch(updater: (s: WorkspaceState) => WorkspaceState) {
     state = updater(state);
     notify();
+  },
+  /** Explicitly push the current state onto the undo stack (use before a meaningful patch). */
+  pushHistory() {
+    recordHistory(state);
+  },
+  canUndo(): boolean {
+    return past.length > 0;
+  },
+  canRedo(): boolean {
+    return future.length > 0;
+  },
+  undo(): boolean {
+    const prev = past.pop();
+    if (!prev) return false;
+    future.push(state);
+    state = prev;
+    sequencer.load(state.pattern);
+    midiLearn.bindings = state.midiBindings;
+    chaos.routes = state.chaosRoutes;
+    engine.syncTracks(state.pattern.tracks.map((t) => ({ id: t.id, kind: t.kind as TrackKind })));
+    syncMixToEngine();
+    notify();
+    return true;
+  },
+  redo(): boolean {
+    const next = future.pop();
+    if (!next) return false;
+    past.push(state);
+    state = next;
+    sequencer.load(state.pattern);
+    midiLearn.bindings = state.midiBindings;
+    chaos.routes = state.chaosRoutes;
+    engine.syncTracks(state.pattern.tracks.map((t) => ({ id: t.id, kind: t.kind as TrackKind })));
+    syncMixToEngine();
+    notify();
+    return true;
   },
 
   // ===== Panel instances =====
@@ -419,6 +489,34 @@ export const workspace = {
         tracks: s.pattern.tracks.map((t) => (t.id === id ? { ...t, name } : t)),
       },
     }));
+  },
+  /** Mutate one field on one track in place (no sequencer reload). */
+  updateTrack(id: string, patch: Partial<Track>) {
+    workspace.patch((s) => ({
+      ...s,
+      pattern: {
+        ...s.pattern,
+        tracks: s.pattern.tracks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      },
+    }));
+  },
+  setTrackSwing(id: string, v: number) {
+    workspace.updateTrack(id, { swing: Math.max(0, Math.min(0.66, v)) });
+  },
+  setTrackHumanize(id: string, ms: number) {
+    workspace.updateTrack(id, { humanize: Math.max(0, Math.min(80, ms)) });
+  },
+  setTrackEqBand(id: string, band: "low" | "mid" | "high", dB: number) {
+    const cur = workspace.get().pattern.tracks.find((t) => t.id === id);
+    const eq = { low: 0, mid: 0, high: 0, ...(cur?.eq ?? {}), [band]: dB };
+    workspace.updateTrack(id, { eq });
+    engine.setTrackEq(id, band, dB);
+  },
+  setTrackSendLevel(id: string, target: "reverb" | "delay", v: number) {
+    const cur = workspace.get().pattern.tracks.find((t) => t.id === id);
+    const sends = { reverb: 0, delay: 0, ...(cur?.sends ?? {}), [target]: v };
+    workspace.updateTrack(id, { sends });
+    engine.setTrackSend(id, target, v);
   },
 
   // ===== Music Board =====

@@ -9,6 +9,7 @@ import { MusicBoardPanel } from "./MusicBoard";
 import { SoundboardPanel } from "./Soundboard";
 import { ScenesPanel } from "./Scenes";
 import { PanelWindow } from "./PanelWindow";
+import { CommandPalette } from "./CommandPalette";
 import {
   workspace,
   useWorkspace,
@@ -74,6 +75,7 @@ export function Workstation() {
           })}
         </div>
       </div>
+      <CommandPalette />
     </div>
   );
 }

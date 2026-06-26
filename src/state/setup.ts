@@ -25,6 +25,17 @@ export async function boot(opts: { midiVersion?: 1 | 2 } = {}) {
   const ws = workspace.get();
   for (const t of ws.pattern.tracks) {
     engine.addTrack(t.id, t.kind as TrackKind);
+    // Restore EQ / send settings that may have been edited while the engine
+    // was still suspended (workspace state set / loaded pre-boot).
+    if (t.eq) {
+      engine.setTrackEq(t.id, "low", t.eq.low);
+      engine.setTrackEq(t.id, "mid", t.eq.mid);
+      engine.setTrackEq(t.id, "high", t.eq.high);
+    }
+    if (t.sends) {
+      engine.setTrackSend(t.id, "reverb", t.sends.reverb);
+      engine.setTrackSend(t.id, "delay", t.sends.delay);
+    }
   }
 
   // MIDI backend selection.
