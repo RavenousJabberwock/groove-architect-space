@@ -8,7 +8,7 @@
 
 import { bus } from "./bus";
 import { createDrumVoice, type DrumKind } from "./voices/drum-voices";
-import { createSubtractiveVoice } from "./voices/subtractive";
+import { createSubtractiveVoice, type ADSR } from "./voices/subtractive";
 
 export interface TrackChannel {
   id: string;
@@ -144,6 +144,33 @@ class AudioEngine {
     if (!this.ctx) return;
     // Push to live synth filters (per-track filter is currently a one-shot per
     // voice; this is here so future continuous voices can pick it up).
+  }
+
+  /**
+   * Fire a one-shot voice directly into the master bus (no track channel).
+   * Used by the Soundboard for MIDI percussion / custom synth pads and by
+   * UI helpers that want to audition a kind without registering a track.
+   */
+  triggerOneShot(
+    kind: TrackKind,
+    opts: { note?: number; velocity?: number; adsr?: ADSR; wave?: OscillatorType } = {},
+  ) {
+    if (!this.ctx || !this.master) return;
+    const time = this.now();
+    const velocity = opts.velocity ?? 0.9;
+    if (kind === "synth") {
+      createSubtractiveVoice(this.ctx, this.master, {
+        note: opts.note ?? 60,
+        velocity,
+        time,
+        cutoff: this.chaosCutoff,
+        resonance: this.chaosResonance,
+        adsr: opts.adsr,
+        wave: opts.wave,
+      });
+    } else {
+      createDrumVoice(this.ctx, this.master, kind, { time, velocity });
+    }
   }
 
   now(): number {
