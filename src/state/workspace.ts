@@ -269,7 +269,7 @@ export const workspace = {
     const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
     workspace.patch((s) => ({
       ...s,
-      musicTracks: [...s.musicTracks, { volume: 0.7, loop: true, ...t, id }],
+      musicTracks: [...s.musicTracks, { volume: 0.7, loop: true, ...t, id }] as MusicTrack[],
     }));
   },
   updateMusic(id: string, patch: Partial<MusicTrack>) {
