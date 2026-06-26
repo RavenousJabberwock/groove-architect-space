@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
-import { Plus, Trash2, Upload, Pencil, Check, X, Keyboard } from "lucide-react";
+import { Plus, Trash2, Upload, Pencil, Check, X } from "lucide-react";
 import { useWorkspace, workspace, type SoundEffect, type SfxKind } from "@/state/workspace";
 import { readId3Title, titleFromUrl } from "@/audio/id3";
 import { ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
 import { triggerSfx } from "@/audio/triggers";
-import { midiLearn } from "@/midi/learn";
-import { keyEventToHotkey } from "@/hooks/use-pad-triggers";
+import { BindingsField } from "./BindingsField";
 import { toast } from "sonner";
 
 /**
@@ -290,6 +289,13 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
         />
         <span className="readout w-8 text-right text-xs">{Math.round(volume * 100)}</span>
       </div>
+
+      <BindingsField
+        hotkey={sfx.hotkey}
+        midiNote={sfx.midiNote}
+        onChange={(patch) => workspace.updateSfx(sfx.id, patch)}
+      />
+
 
       <div className="flex gap-1">
         <button
