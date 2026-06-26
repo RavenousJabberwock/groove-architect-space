@@ -89,13 +89,14 @@ function snare(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts)
   noise(ctx, dest, time, velocity * 0.8, 0.18, 1800);
 }
 
-function hat(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
-  noise(ctx, dest, time, velocity * 0.5, 0.05, 8000, "highpass");
+function hat(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  noise(ctx, dest, time, velocity * 0.5, 0.05, 8000 * semi(tune), "highpass");
 }
 
-function clap(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+function clap(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  const f = 1500 * semi(tune);
   [0, 0.01, 0.02, 0.03].forEach((d, i) =>
-    noise(ctx, dest, time + d, velocity * (i === 3 ? 0.6 : 0.3), 0.04, 1500, "bandpass"),
+    noise(ctx, dest, time + d, velocity * (i === 3 ? 0.6 : 0.3), 0.04, f, "bandpass"),
   );
 }
 
@@ -127,6 +128,7 @@ function perc(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: 
   osc.stop(time + 0.1);
 }
 
+/** Shared filtered-noise burst used by hats, claps, snare body, etc. */
 function noise(
   ctx: AudioContext,
   dest: AudioNode,
@@ -143,7 +145,7 @@ function noise(
   src.buffer = buf;
   const filter = ctx.createBiquadFilter();
   filter.type = type;
-  filter.frequency.value = freq;
+  filter.frequency.value = Math.max(20, Math.min(20000, freq));
   const amp = ctx.createGain();
   amp.gain.setValueAtTime(vel, time);
   amp.gain.exponentialRampToValueAtTime(0.0001, time + dur);
@@ -152,15 +154,16 @@ function noise(
   src.stop(time + dur + 0.01);
 }
 
-function openhat(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
-  noise(ctx, dest, time, velocity * 0.45, 0.32, 8000, "highpass");
-  noise(ctx, dest, time, velocity * 0.2, 0.3, 6500, "bandpass");
+function openhat(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  const s = semi(tune);
+  noise(ctx, dest, time, velocity * 0.45, 0.32, 8000 * s, "highpass");
+  noise(ctx, dest, time, velocity * 0.2, 0.3, 6500 * s, "bandpass");
 }
 
-function rim(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+function rim(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
   const osc = ctx.createOscillator();
   osc.type = "square";
-  osc.frequency.value = 1700;
+  osc.frequency.value = 1700 * semi(tune);
   const amp = ctx.createGain();
   amp.gain.setValueAtTime(0.0001, time);
   amp.gain.exponentialRampToValueAtTime(velocity * 0.4, time + 0.001);
@@ -168,14 +171,15 @@ function rim(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
   osc.connect(amp).connect(dest);
   osc.start(time);
   osc.stop(time + 0.06);
-  noise(ctx, dest, time, velocity * 0.2, 0.03, 4000, "highpass");
+  noise(ctx, dest, time, velocity * 0.2, 0.03, 4000 * semi(tune), "highpass");
 }
 
-function cowbell(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
+function cowbell(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  const s = semi(tune);
   for (const f of [800, 540]) {
     const o = ctx.createOscillator();
     o.type = "square";
-    o.frequency.value = f;
+    o.frequency.value = f * s;
     const a = ctx.createGain();
     a.gain.setValueAtTime(0.0001, time);
     a.gain.exponentialRampToValueAtTime(velocity * 0.22, time + 0.002);
@@ -186,9 +190,10 @@ function cowbell(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpt
   }
 }
 
-function cymbal(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
-  noise(ctx, dest, time, velocity * 0.35, 0.9, 6000, "highpass");
-  noise(ctx, dest, time, velocity * 0.2, 0.6, 9000, "bandpass");
+function cymbal(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  const s = semi(tune);
+  noise(ctx, dest, time, velocity * 0.35, 0.9, 6000 * s, "highpass");
+  noise(ctx, dest, time, velocity * 0.2, 0.6, 9000 * s, "bandpass");
 }
 
 function conga(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
@@ -206,6 +211,11 @@ function conga(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }:
   osc.stop(time + 0.24);
 }
 
-function shaker(ctx: AudioContext, dest: AudioNode, { time, velocity }: DrumOpts) {
-  noise(ctx, dest, time, velocity * 0.3, 0.06, 7500, "highpass");
+function shaker(ctx: AudioContext, dest: AudioNode, { time, velocity, tune = 0 }: DrumOpts) {
+  noise(ctx, dest, time, velocity * 0.3, 0.06, 7500 * semi(tune), "highpass");
 }
+
+/* snare's tonal body could also follow `tune`; left flat by design so the
+   noise tail remains recognisable as a snare regardless of which key you
+   press from the synth panel. */
+
