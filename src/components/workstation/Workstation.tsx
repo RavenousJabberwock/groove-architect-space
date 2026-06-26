@@ -6,6 +6,8 @@ import { MixerPanel } from "./Mixer";
 import { DrumMachinePanel } from "./DrumMachine";
 import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
+import { MusicBoardPanel } from "./MusicBoard";
+import { SoundboardPanel } from "./Soundboard";
 import { PanelWindow } from "./PanelWindow";
 import { workspace } from "@/state/workspace";
 import { applyPalette } from "@/themes/palettes";
