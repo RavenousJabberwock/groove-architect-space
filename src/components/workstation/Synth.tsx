@@ -52,8 +52,9 @@ export function SynthPanel() {
       });
       return;
     }
-    // Percussion kinds — ignore pitch but expose velocity from key position.
-    engine.triggerOneShot(instrument, { velocity: 0.9 });
+    // Percussion kinds — pass the key's MIDI note so the voice is pitched
+    // relative to C4. Drum factories that don't tune simply ignore it.
+    engine.triggerOneShot(instrument, { velocity: 0.9, note });
   };
 
   // Build flat list of (note, label) for the visible range.
