@@ -79,6 +79,67 @@ export function ConfigDialog({ open, onClose }: Props) {
         <section className="mb-6">
           <div className="mb-2 flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Sidechain ducking
+            </div>
+            <label className="flex items-center gap-1 text-[10px] uppercase tracking-wider">
+              <input
+                type="checkbox"
+                checked={duck.enabled}
+                onChange={(e) => workspace.setDuck({ enabled: e.target.checked })}
+                className="accent-[var(--color-primary)]"
+              />
+              Enabled
+            </label>
+          </div>
+          <p className="mb-2 text-[10px] text-muted-foreground">
+            Music dips automatically whenever a soundboard pad fires, so sound
+            effects always cut through.
+          </p>
+          <div className={`space-y-1.5 ${duck.enabled ? "" : "opacity-50"}`}>
+            <DuckSlider
+              label="Amount"
+              value={duck.amount}
+              min={0}
+              max={1}
+              step={0.01}
+              fmt={(v) => `-${Math.round(v * 100)}%`}
+              onChange={(v) => workspace.setDuck({ amount: v })}
+            />
+            <DuckSlider
+              label="Attack"
+              value={duck.attackMs}
+              min={5}
+              max={300}
+              step={5}
+              fmt={(v) => `${v}ms`}
+              onChange={(v) => workspace.setDuck({ attackMs: v })}
+            />
+            <DuckSlider
+              label="Hold"
+              value={duck.holdMs}
+              min={0}
+              max={1000}
+              step={10}
+              fmt={(v) => `${v}ms`}
+              onChange={(v) => workspace.setDuck({ holdMs: v })}
+            />
+            <DuckSlider
+              label="Release"
+              value={duck.releaseMs}
+              min={50}
+              max={2000}
+              step={25}
+              fmt={(v) => `${v}ms`}
+              onChange={(v) => workspace.setDuck({ releaseMs: v })}
+            />
+          </div>
+        </section>
+
+
+
+        <section className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
               Add window
             </div>
             <button
