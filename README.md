@@ -27,8 +27,8 @@ You can make some music live at https://groove-architect-space.lovable.app/
 ## Features
 
 ### Audio
-- **Drum engine** — 12 fully-synthesized voices: `kick`, `snare`, `hat`, `openhat`, `clap`, `rim`, `tom`, `conga`, `cowbell`, `cymbal`, `shaker`, `perc`.
-- **Subtractive synth** — sawtooth oscillator → resonant lowpass → ADSR amp envelope.
+- **Drum engine** — 12 fully-synthesized voices: `kick`, `snare`, `hat`, `openhat`, `clap`, `rim`, `tom`, `conga`, `cowbell`, `cymbal`, `shaker`, `perc`. All voices follow a `tune` parameter so they can be pitched per-step (sequencer p-lock) or per-key (Synth panel percussion mode).
+- **Subtractive synth** — selectable waveform (saw/square/triangle/sine) → resonant lowpass → ADSR amp envelope.
 - **Chaos pad** — Kaoss-style XY controller with a continuous oscillator that routes X/Y to filter cutoff/resonance (or any registered macro target).
 - **Sample-accurate scheduling** via a lookahead clock on a single shared `AudioContext`.
 - **Master bus** with a dynamics compressor acting as a soft limiter.
@@ -38,7 +38,7 @@ You can make some music live at https://groove-architect-space.lovable.app/
 - **Polyrhythm** — per-track `divisor` (0.25–4) controls how often a track advances.
 - **Probability** — 0–100 % per step.
 - **Conditional trigs** (Elektron-style): `1:2`, `2:2`, `FILL`, `PRE`, `NEI`.
-- **Parameter locks** — per-step overrides for any registered parameter.
+- **Parameter locks** — per-step overrides for any registered parameter (including `tune` on drum tracks).
 - **Dynamic tracks** — add, remove, or swap the instrument on any row at runtime.
 
 ### MIDI
@@ -46,14 +46,22 @@ You can make some music live at https://groove-architect-space.lovable.app/
 - **MIDI 2.0** backend stub — same interface, UMP-ready, drop-in when browsers expose it.
 - **MIDI Learn** — right-click any knob to bind it to the next CC received.
 
+### RPG-Oriented Boards
+- **Music Board** — DJ-style background music mixer with per-track loop toggle and crossfade. URL or local-file ingestion, auto-titled from ID3 v2 `TIT2` frames, with user overrides preserved.
+- **Soundboard** — grid of one-shot SFX pads. Each pad is one of:
+  - `sample` — audio URL or uploaded file.
+  - `midi` — any built-in percussion voice.
+  - `synth` — custom note + waveform + ADSR pad.
+
 ### UI
 - **Hardware/Elektron-inspired dark theme** with JetBrains Mono and 5 swappable palettes (Amber, Phosphor, Cyan, Synthwave, Mono).
 - **Movable, resizable, closable panels** with z-order — your layout is saved with the workspace.
 - **Windows menu** to show/hide any panel, plus a **Configure** dialog for theme and layout reset.
 - **Beginner / Pro modes** that progressively reveal advanced controls.
+- **Unified Mixer** — master, music-master, sfx-master, and per-track gain/mute/solo all in one panel.
 
 ### Workspace
-- The full app state — pattern, layout, palette, mode, MIDI bindings, chaos routes — persists to `localStorage` (and is wired to move to Lovable Cloud).
+- The full app state — pattern, layout, palette, mode, MIDI bindings, chaos routes, music & SFX libraries — persists to `localStorage` (and is wired to move to Lovable Cloud).
 - Save / load workspace by name.
 
 ---
@@ -126,16 +134,19 @@ Shortcuts are ignored while a text input has focus.
 
 ## UI Overview
 
-The workstation defaults to a windowed layout with six panels:
+The workstation defaults to a windowed layout. Every panel is closable, draggable, resizable and persists across sessions.
 
 | Panel        | Purpose                                                      |
 | ------------ | ------------------------------------------------------------ |
 | **Sequencer** | Pattern grid, per-track instrument selection, conditional trigs, transport. |
-| **Drum Machine** | Pad bank for direct triggering and per-voice trim. |
-| **Synth**    | Subtractive synth controls (cutoff, resonance, ADSR).        |
+| **Synth**    | Two-octave piano keyboard. Instrument selector routes keys to the subtractive synth or any percussion voice (drum voices pitch with the key relative to C4). |
 | **Chaos Pad** | XY controller — drag to sweep filter/resonance with live audio. |
-| **Mixer**    | Per-track gain, mute, solo, master.                          |
+| **Mixer**    | Master / Music / SFX masters + per-track gain, mute, solo. |
+| **Music Board** | Background music mixer for RPG ambience: per-track faders, loop toggles, crossfade. |
+| **Soundboard** | Grid of one-shot SFX pads: sample, MIDI percussion, or custom synth. |
 | **Browser**  | Drag-and-drop sample browser (scaffolding for the sampler).  |
+
+> The dedicated **Drums** panel was removed in favour of the Synth panel's percussion-instrument selector plus the Soundboard's MIDI pads — both cover the same use-cases without a duplicate panel.
 
 Every panel can be dragged by its title bar, resized via the bottom-right corner, closed via the `×`, or restored from the **Windows** menu in the top bar. The **Configure** button opens theme selection and layout reset.
 
@@ -148,8 +159,10 @@ src/
 ├── audio/                  Web Audio engine + voices + event bus
 │   ├── bus.ts              Central typed event bus
 │   ├── engine.ts           AudioContext, master bus, track channels
+│   ├── id3.ts              Minimal ID3v2 TIT2 reader (auto-titles for media)
+│   ├── media-player.ts     HTMLAudio layer for Music Board / Soundboard samples
 │   └── voices/
-│       ├── drum-voices.ts  12 synthesized drum voices
+│       ├── drum-voices.ts  12 synthesized drum voices (pitch-aware via tune/note)
 │       └── subtractive.ts  Saw → filter → ADSR synth
 ├── sequencer/
 │   ├── engine.ts           Lookahead step scheduler

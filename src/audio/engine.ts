@@ -95,8 +95,16 @@ class AudioEngine {
         });
       };
     } else {
+      // Sequencer drum trigger. `note` from the bus is the track's MIDI
+      // channel-note (e.g. 36 = kick) used for MIDI-out routing, NOT a pitch.
+      // Per-step retuning is done via a `tune` p-lock; the Synth panel pitches
+      // percussion through `triggerOneShot` instead.
       trigger = (time, { velocity, pLocks }) => {
-        createDrumVoice(ctx, filter, kind, { time, velocity, tune: pLocks?.tune ?? 0 });
+        createDrumVoice(ctx, filter, kind, {
+          time,
+          velocity,
+          tune: pLocks?.tune ?? 0,
+        });
       };
     }
 
@@ -136,6 +144,15 @@ class AudioEngine {
     ch.gain.gain.setTargetAtTime(value, this.ctx.currentTime, 0.01);
   }
 
+  /** Master output gain (pre-limiter). */
+  setMasterGain(value: number) {
+    if (!this.master || !this.ctx) return;
+    this.master.gain.setTargetAtTime(Math.max(0, value), this.ctx.currentTime, 0.01);
+  }
+  getMasterGain(): number {
+    return this.master?.gain.value ?? 0.8;
+  }
+
   /** Called by chaos pad — writes shared synth filter target. */
   setChaosXY(x: number, y: number) {
     // Map X to cutoff (log) and Y to resonance.
@@ -169,7 +186,10 @@ class AudioEngine {
         wave: opts.wave,
       });
     } else {
-      createDrumVoice(this.ctx, this.master, kind, { time, velocity });
+      // For percussion: `note` (when provided) pitches the voice relative
+      // to MIDI 60. The Soundboard's MIDI-kind pads omit `note` so the
+      // voice plays at its natural pitch.
+      createDrumVoice(this.ctx, this.master, kind, { time, velocity, note: opts.note });
     }
   }
 

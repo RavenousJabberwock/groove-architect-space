@@ -3,7 +3,7 @@ import { TopBar } from "./TopBar";
 import { SequencerPanel } from "./Sequencer";
 import { ChaosPadPanel } from "./ChaosPad";
 import { MixerPanel } from "./Mixer";
-import { DrumMachinePanel } from "./DrumMachine";
+
 import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
 import { MusicBoardPanel } from "./MusicBoard";
@@ -31,9 +31,6 @@ export function Workstation() {
         <div className="relative h-full w-full">
           <PanelWindow id="sequencer" title="Sequencer">
             <SequencerPanel />
-          </PanelWindow>
-          <PanelWindow id="drum" title="Drums">
-            <DrumMachinePanel />
           </PanelWindow>
           <PanelWindow id="synth" title="Synth">
             <SynthPanel />

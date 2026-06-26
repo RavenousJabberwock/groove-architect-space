@@ -9,7 +9,6 @@ interface Props {
 
 const PANEL_LABELS: Record<PanelId, string> = {
   sequencer: "Sequencer",
-  drum: "Drums",
   synth: "Synth",
   chaos: "Chaos Pad",
   mixer: "Mixer",

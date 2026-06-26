@@ -19,7 +19,6 @@ import { mediaPlayer } from "../audio/media-player";
 
 export type Mode = "beginner" | "pro";
 export type PanelId =
-  | "drum"
   | "synth"
   | "chaos"
   | "sequencer"
@@ -30,7 +29,6 @@ export type PanelId =
 
 export const PANEL_IDS: PanelId[] = [
   "sequencer",
-  "drum",
   "synth",
   "chaos",
   "mixer",
@@ -49,13 +47,15 @@ export interface PanelLayout {
   z: number;
 }
 
+// Default layout: Sequencer + Synth + Chaos + Mixer on top, Music + Soundboard
+// across the bottom. The Drums panel was removed (the Soundboard with MIDI
+// pads and the Synth panel's percussion mode cover the same use-cases).
 export const DEFAULT_LAYOUTS: Record<PanelId, PanelLayout> = {
   sequencer:  { visible: true,  x: 0.3,  y: 0.3,  w: 61.0, h: 60.0, z: 1 },
-  drum:       { visible: true,  x: 61.6, y: 0.3,  w: 18.7, h: 49.5, z: 1 },
-  synth:      { visible: true,  x: 80.6, y: 0.3,  w: 19.1, h: 49.5, z: 1 },
+  synth:      { visible: true,  x: 61.6, y: 0.3,  w: 26.0, h: 49.5, z: 1 },
   chaos:      { visible: true,  x: 61.6, y: 50.2, w: 14.7, h: 49.5, z: 1 },
-  mixer:      { visible: true,  x: 76.6, y: 50.2, w: 11.8, h: 49.5, z: 1 },
-  browser:    { visible: false, x: 88.7, y: 50.2, w: 11.0, h: 49.5, z: 1 },
+  mixer:      { visible: true,  x: 76.6, y: 50.2, w: 23.1, h: 49.5, z: 1 },
+  browser:    { visible: false, x: 87.7, y: 0.3,  w: 12.0, h: 49.5, z: 1 },
   music:      { visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
   soundboard: { visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
 };
@@ -166,7 +166,7 @@ function initial(): WorkspaceState {
   return {
     pattern,
     mode: "beginner",
-    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
+    panelOrder: ["sequencer", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
