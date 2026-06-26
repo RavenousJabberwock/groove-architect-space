@@ -4,7 +4,6 @@ import { workspace, useWorkspace, PANEL_IDS, type PanelId } from "@/state/worksp
 
 const LABELS: Record<PanelId, string> = {
   sequencer: "Sequencer",
-  drum: "Drums",
   synth: "Synth",
   chaos: "Chaos Pad",
   mixer: "Mixer",
