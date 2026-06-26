@@ -193,8 +193,16 @@ export interface Scene {
   capturedAt: number;
 }
 
+/** A chain step in song mode. */
+export interface SongItem { patternId: string; bars: number }
+export interface SongState { enabled: boolean; items: SongItem[] }
+
 export interface WorkspaceState {
   pattern: Pattern;
+  /** Pattern library — saved patterns available to song mode. */
+  patterns: Pattern[];
+  /** Song mode: ordered chain of patterns + bars-per-step. */
+  song: SongState;
   mode: Mode;
   midiBindings: typeof midiLearn.bindings;
   chaosRoutes: typeof chaos.routes;
@@ -202,6 +210,8 @@ export interface WorkspaceState {
   /** Keyed by instance id; each value carries its panel type. */
   layouts: Record<string, PanelInstance>;
   palette: string;
+  /** User-defined palettes appended after the built-ins. */
+  customPalettes: Palette[];
   musicTracks: MusicTrack[];
   soundEffects: SoundEffect[];
   musicMaster: number; // 0..1
@@ -240,12 +250,15 @@ function initial(): WorkspaceState {
   const pattern = defaultPattern();
   return {
     pattern,
+    patterns: [structuredClone(pattern)],
+    song: { enabled: false, items: [] },
     mode: "beginner",
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
     layouts: structuredClone(DEFAULT_LAYOUTS),
     palette: "amber",
+    customPalettes: [],
     musicTracks: structuredClone(DEFAULT_MUSIC),
     soundEffects: structuredClone(DEFAULT_SFX),
     musicMaster: 0.8,
