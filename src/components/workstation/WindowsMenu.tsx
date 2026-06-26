@@ -9,6 +9,8 @@ const LABELS: Record<PanelId, string> = {
   chaos: "Chaos Pad",
   mixer: "Mixer",
   browser: "Browser",
+  music: "Music Board",
+  soundboard: "Soundboard",
 };
 
 export function WindowsMenu() {

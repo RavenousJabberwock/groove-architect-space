@@ -14,6 +14,8 @@ const PANEL_LABELS: Record<PanelId, string> = {
   chaos: "Chaos Pad",
   mixer: "Mixer",
   browser: "Browser",
+  music: "Music Board",
+  soundboard: "Soundboard",
 };
 
 export function ConfigDialog({ open, onClose }: Props) {

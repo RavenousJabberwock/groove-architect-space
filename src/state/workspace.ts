@@ -15,11 +15,29 @@ import { midiLearn } from "../midi/learn";
 import { chaos } from "../chaos/pad";
 import { engine, type TrackKind } from "../audio/engine";
 import { applyPalette } from "../themes/palettes";
+import { mediaPlayer } from "../audio/media-player";
 
 export type Mode = "beginner" | "pro";
-export type PanelId = "drum" | "synth" | "chaos" | "sequencer" | "mixer" | "browser";
+export type PanelId =
+  | "drum"
+  | "synth"
+  | "chaos"
+  | "sequencer"
+  | "mixer"
+  | "browser"
+  | "music"
+  | "soundboard";
 
-export const PANEL_IDS: PanelId[] = ["sequencer", "drum", "synth", "chaos", "mixer", "browser"];
+export const PANEL_IDS: PanelId[] = [
+  "sequencer",
+  "drum",
+  "synth",
+  "chaos",
+  "mixer",
+  "browser",
+  "music",
+  "soundboard",
+];
 
 /** Per-panel floating-window layout, in % of the workspace container. */
 export interface PanelLayout {
@@ -32,13 +50,33 @@ export interface PanelLayout {
 }
 
 export const DEFAULT_LAYOUTS: Record<PanelId, PanelLayout> = {
-  sequencer: { visible: true, x: 0.3, y: 0.3, w: 61.0, h: 99.4, z: 1 },
-  drum:      { visible: true, x: 61.6, y: 0.3, w: 18.7, h: 49.5, z: 1 },
-  synth:     { visible: true, x: 80.6, y: 0.3, w: 19.1, h: 49.5, z: 1 },
-  chaos:     { visible: true, x: 61.6, y: 50.2, w: 14.7, h: 49.5, z: 1 },
-  mixer:     { visible: true, x: 76.6, y: 50.2, w: 11.8, h: 49.5, z: 1 },
-  browser:   { visible: true, x: 88.7, y: 50.2, w: 11.0, h: 49.5, z: 1 },
+  sequencer:  { visible: true,  x: 0.3,  y: 0.3,  w: 61.0, h: 60.0, z: 1 },
+  drum:       { visible: true,  x: 61.6, y: 0.3,  w: 18.7, h: 49.5, z: 1 },
+  synth:      { visible: true,  x: 80.6, y: 0.3,  w: 19.1, h: 49.5, z: 1 },
+  chaos:      { visible: true,  x: 61.6, y: 50.2, w: 14.7, h: 49.5, z: 1 },
+  mixer:      { visible: true,  x: 76.6, y: 50.2, w: 11.8, h: 49.5, z: 1 },
+  browser:    { visible: false, x: 88.7, y: 50.2, w: 11.0, h: 49.5, z: 1 },
+  music:      { visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
+  soundboard: { visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
 };
+
+/** A streamable, fade-able background music track. */
+export interface MusicTrack {
+  id: string;
+  title: string;
+  url: string;
+  volume: number; // 0..1
+  loop: boolean;
+}
+
+/** A one-shot sound effect cue. */
+export interface SoundEffect {
+  id: string;
+  title: string;
+  url: string;
+  volume: number; // 0..1
+  color?: string; // optional pad color hint
+}
 
 export interface WorkspaceState {
   pattern: Pattern;
@@ -49,7 +87,52 @@ export interface WorkspaceState {
   selectedTrackId: string;
   layouts: Record<PanelId, PanelLayout>;
   palette: string;
+  musicTracks: MusicTrack[];
+  soundEffects: SoundEffect[];
+  musicMaster: number; // 0..1
+  sfxMaster: number; // 0..1
+  fadeMs: number; // default crossfade duration
 }
+
+const DEFAULT_MUSIC: MusicTrack[] = [
+  {
+    id: "m-tavern",
+    title: "Tavern Ambience",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    volume: 0.7,
+    loop: true,
+  },
+  {
+    id: "m-journey",
+    title: "Overworld Journey",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+    volume: 0.7,
+    loop: true,
+  },
+  {
+    id: "m-battle",
+    title: "Battle Theme",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    volume: 0.8,
+    loop: true,
+  },
+  {
+    id: "m-dungeon",
+    title: "Dungeon Depths",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+    volume: 0.6,
+    loop: true,
+  },
+];
+
+const DEFAULT_SFX: SoundEffect[] = [
+  { id: "s-sword", title: "Sword Clash", url: "", volume: 0.9 },
+  { id: "s-door", title: "Door Creak", url: "", volume: 0.9 },
+  { id: "s-thunder", title: "Thunder", url: "", volume: 0.9 },
+  { id: "s-spell", title: "Magic Spell", url: "", volume: 0.9 },
+  { id: "s-coin", title: "Coin Drop", url: "", volume: 0.9 },
+  { id: "s-roar", title: "Monster Roar", url: "", volume: 0.9 },
+];
 
 const STORAGE_KEY = "hmw.workspace.v1";
 
@@ -58,12 +141,17 @@ function initial(): WorkspaceState {
   return {
     pattern,
     mode: "beginner",
-    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser"],
+    panelOrder: ["sequencer", "drum", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
     layouts: structuredClone(DEFAULT_LAYOUTS),
     palette: "amber",
+    musicTracks: structuredClone(DEFAULT_MUSIC),
+    soundEffects: structuredClone(DEFAULT_SFX),
+    musicMaster: 0.8,
+    sfxMaster: 0.9,
+    fadeMs: 2000,
   };
 }
 
@@ -175,6 +263,62 @@ export const workspace = {
       },
     }));
   },
+
+  // ===== Music Board =====
+  addMusic(t: Partial<MusicTrack> & { title: string; url: string }) {
+    const id = t.id ?? `m-${Math.random().toString(36).slice(2, 8)}`;
+    const track: MusicTrack = {
+      id,
+      title: t.title,
+      url: t.url,
+      volume: t.volume ?? 0.7,
+      loop: t.loop ?? true,
+    };
+    workspace.patch((s) => ({ ...s, musicTracks: [...s.musicTracks, track] }));
+  },
+  updateMusic(id: string, patch: Partial<MusicTrack>) {
+    workspace.patch((s) => ({
+      ...s,
+      musicTracks: s.musicTracks.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  },
+  removeMusic(id: string) {
+    mediaPlayer.dispose(id);
+    workspace.patch((s) => ({ ...s, musicTracks: s.musicTracks.filter((m) => m.id !== id) }));
+  },
+  setMusicMaster(v: number) {
+    workspace.patch((s) => ({ ...s, musicMaster: Math.max(0, Math.min(1, v)) }));
+  },
+  setFadeMs(ms: number) {
+    workspace.patch((s) => ({ ...s, fadeMs: Math.max(0, ms) }));
+  },
+
+  // ===== Soundboard =====
+  addSfx(t: Partial<SoundEffect> & { title: string; url: string }) {
+    const id = t.id ?? `s-${Math.random().toString(36).slice(2, 8)}`;
+    const sfx: SoundEffect = {
+      id,
+      title: t.title,
+      url: t.url,
+      volume: t.volume ?? 0.9,
+      color: t.color,
+    };
+    workspace.patch((s) => ({ ...s, soundEffects: [...s.soundEffects, sfx] }));
+  },
+  updateSfx(id: string, patch: Partial<SoundEffect>) {
+    workspace.patch((s) => ({
+      ...s,
+      soundEffects: s.soundEffects.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  },
+  removeSfx(id: string) {
+    mediaPlayer.dispose(id);
+    workspace.patch((s) => ({ ...s, soundEffects: s.soundEffects.filter((m) => m.id !== id) }));
+  },
+  setSfxMaster(v: number) {
+    workspace.patch((s) => ({ ...s, sfxMaster: Math.max(0, Math.min(1, v)) }));
+  },
+
   subscribe(l: () => void) {
     listeners.add(l);
     return () => listeners.delete(l);

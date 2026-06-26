@@ -6,6 +6,8 @@ import { MixerPanel } from "./Mixer";
 import { DrumMachinePanel } from "./DrumMachine";
 import { SynthPanel } from "./Synth";
 import { BrowserPanel } from "./Browser";
+import { MusicBoardPanel } from "./MusicBoard";
+import { SoundboardPanel } from "./Soundboard";
 import { PanelWindow } from "./PanelWindow";
 import { workspace } from "@/state/workspace";
 import { applyPalette } from "@/themes/palettes";
@@ -44,6 +46,12 @@ export function Workstation() {
           </PanelWindow>
           <PanelWindow id="browser" title="Browser">
             <BrowserPanel />
+          </PanelWindow>
+          <PanelWindow id="music" title="Music Board">
+            <MusicBoardPanel />
+          </PanelWindow>
+          <PanelWindow id="soundboard" title="Soundboard">
+            <SoundboardPanel />
           </PanelWindow>
         </div>
       </div>
