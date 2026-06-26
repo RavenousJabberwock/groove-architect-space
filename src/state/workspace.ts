@@ -579,11 +579,15 @@ export const workspace = {
       const raw = localStorage.getItem(STORAGE_KEY + ":" + name);
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { state: Partial<WorkspaceState> };
+      const base = initial();
       const merged: WorkspaceState = {
-        ...initial(),
+        ...base,
         ...parsed.state,
         layouts: migrateLayouts(parsed.state.layouts),
         palette: parsed.state.palette ?? "amber",
+        duck: { ...base.duck, ...(parsed.state.duck ?? {}) },
+        playlist: { ...base.playlist, ...(parsed.state.playlist ?? {}) },
+        scenes: parsed.state.scenes ?? [],
       };
       workspace.set(() => merged);
       applyPalette(merged.palette);
