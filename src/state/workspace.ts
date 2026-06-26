@@ -9,7 +9,7 @@
 import { useSyncExternalStore } from "react";
 import { defaultPattern } from "../presets/defaults";
 import type { Pattern, Track } from "../sequencer/types";
-import { emptyStep, makeTrack } from "../sequencer/types";
+import { makeTrack } from "../sequencer/types";
 import { sequencer } from "../sequencer/engine";
 import { midiLearn } from "../midi/learn";
 import { chaos } from "../chaos/pad";
@@ -18,7 +18,14 @@ import { applyPalette } from "../themes/palettes";
 import { mediaPlayer } from "../audio/media-player";
 
 export type Mode = "beginner" | "pro";
-export type PanelId =
+
+/**
+ * The set of panel kinds the workstation knows how to render. Each panel
+ * type can be instantiated zero, one, or many times — the renderer keys by
+ * the instance id stored in `layouts`, and looks up the React component by
+ * `type`.
+ */
+export type PanelType =
   | "synth"
   | "chaos"
   | "sequencer"
@@ -27,7 +34,10 @@ export type PanelId =
   | "music"
   | "soundboard";
 
-export const PANEL_IDS: PanelId[] = [
+/** Backwards-compatible alias — some older callers still import PanelId. */
+export type PanelId = PanelType;
+
+export const PANEL_TYPES: PanelType[] = [
   "sequencer",
   "synth",
   "chaos",
@@ -36,8 +46,21 @@ export const PANEL_IDS: PanelId[] = [
   "music",
   "soundboard",
 ];
+/** Alias kept for older code that imported PANEL_IDS. */
+export const PANEL_IDS = PANEL_TYPES;
 
-/** Per-panel floating-window layout, in % of the workspace container. */
+/** Human-readable label for a panel type (used by menus and window titles). */
+export const PANEL_LABELS: Record<PanelType, string> = {
+  sequencer: "Sequencer",
+  synth: "Synth",
+  chaos: "Chaos Pad",
+  mixer: "Mixer",
+  browser: "Browser",
+  music: "Music Board",
+  soundboard: "Soundboard",
+};
+
+/** Per-instance floating-window layout, in % of the workspace container. */
 export interface PanelLayout {
   visible: boolean;
   x: number;
@@ -47,17 +70,29 @@ export interface PanelLayout {
   z: number;
 }
 
+/**
+ * A panel *instance* — one floating window. The `id` is the unique key in
+ * `layouts`. Multiple instances of the same `type` are allowed; users can
+ * spawn a second Synth, Music Board, etc. with their own position and size.
+ */
+export interface PanelInstance extends PanelLayout {
+  id: string;
+  type: PanelType;
+  /** Optional override of the window title; falls back to PANEL_LABELS[type]. */
+  title?: string;
+}
+
 // Default layout: Sequencer + Synth + Chaos + Mixer on top, Music + Soundboard
-// across the bottom. The Drums panel was removed (the Soundboard with MIDI
-// pads and the Synth panel's percussion mode cover the same use-cases).
-export const DEFAULT_LAYOUTS: Record<PanelId, PanelLayout> = {
-  sequencer:  { visible: true,  x: 0.3,  y: 0.3,  w: 61.0, h: 60.0, z: 1 },
-  synth:      { visible: true,  x: 61.6, y: 0.3,  w: 26.0, h: 49.5, z: 1 },
-  chaos:      { visible: true,  x: 61.6, y: 50.2, w: 14.7, h: 49.5, z: 1 },
-  mixer:      { visible: true,  x: 76.6, y: 50.2, w: 23.1, h: 49.5, z: 1 },
-  browser:    { visible: false, x: 87.7, y: 0.3,  w: 12.0, h: 49.5, z: 1 },
-  music:      { visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
-  soundboard: { visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
+// across the bottom. Instance ids are seeded equal to the panel type so old
+// saves migrate cleanly.
+export const DEFAULT_LAYOUTS: Record<string, PanelInstance> = {
+  sequencer:  { id: "sequencer",  type: "sequencer",  visible: true,  x: 0.3,  y: 0.3,  w: 61.0, h: 60.0, z: 1 },
+  synth:      { id: "synth",      type: "synth",      visible: true,  x: 61.6, y: 0.3,  w: 26.0, h: 49.5, z: 1 },
+  chaos:      { id: "chaos",      type: "chaos",      visible: true,  x: 61.6, y: 50.2, w: 14.7, h: 49.5, z: 1 },
+  mixer:      { id: "mixer",      type: "mixer",      visible: true,  x: 76.6, y: 50.2, w: 23.1, h: 49.5, z: 1 },
+  browser:    { id: "browser",    type: "browser",    visible: false, x: 87.7, y: 0.3,  w: 12.0, h: 49.5, z: 1 },
+  music:      { id: "music",      type: "music",      visible: true,  x: 0.3,  y: 61.0, w: 36.0, h: 38.5, z: 1 },
+  soundboard: { id: "soundboard", type: "soundboard", visible: true,  x: 37.0, y: 61.0, w: 24.0, h: 38.5, z: 1 },
 };
 
 /** A streamable, fade-able background music track. */
@@ -101,11 +136,11 @@ export interface SoundEffect {
 export interface WorkspaceState {
   pattern: Pattern;
   mode: Mode;
-  panelOrder: PanelId[];
   midiBindings: typeof midiLearn.bindings;
   chaosRoutes: typeof chaos.routes;
   selectedTrackId: string;
-  layouts: Record<PanelId, PanelLayout>;
+  /** Keyed by instance id; each value carries its panel type. */
+  layouts: Record<string, PanelInstance>;
   palette: string;
   musicTracks: MusicTrack[];
   soundEffects: SoundEffect[];
@@ -115,34 +150,10 @@ export interface WorkspaceState {
 }
 
 const DEFAULT_MUSIC: MusicTrack[] = [
-  {
-    id: "m-tavern",
-    title: "Tavern Ambience",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-    volume: 0.7,
-    loop: true,
-  },
-  {
-    id: "m-journey",
-    title: "Overworld Journey",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
-    volume: 0.7,
-    loop: true,
-  },
-  {
-    id: "m-battle",
-    title: "Battle Theme",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    volume: 0.8,
-    loop: true,
-  },
-  {
-    id: "m-dungeon",
-    title: "Dungeon Depths",
-    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
-    volume: 0.6,
-    loop: true,
-  },
+  { id: "m-tavern",  title: "Tavern Ambience",   url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", volume: 0.7, loop: true },
+  { id: "m-journey", title: "Overworld Journey", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", volume: 0.7, loop: true },
+  { id: "m-battle",  title: "Battle Theme",      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", volume: 0.8, loop: true },
+  { id: "m-dungeon", title: "Dungeon Depths",    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", volume: 0.6, loop: true },
 ];
 
 const DEFAULT_SFX: SoundEffect[] = [
@@ -166,7 +177,6 @@ function initial(): WorkspaceState {
   return {
     pattern,
     mode: "beginner",
-    panelOrder: ["sequencer", "synth", "chaos", "mixer", "browser", "music", "soundboard"],
     midiBindings: [],
     chaosRoutes: chaos.routes,
     selectedTrackId: pattern.tracks[0]!.id,
@@ -187,13 +197,39 @@ function notify() {
   for (const l of listeners) l();
 }
 
+/**
+ * Migrate a legacy `layouts` object (keyed by PanelType with no `id`/`type`
+ * fields) into the new shape. Safe to call on already-migrated values.
+ */
+function migrateLayouts(input: unknown): Record<string, PanelInstance> {
+  const out: Record<string, PanelInstance> = structuredClone(DEFAULT_LAYOUTS);
+  if (!input || typeof input !== "object") return out;
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") continue;
+    const v = value as Partial<PanelInstance> & PanelLayout;
+    const type = (v.type ?? (PANEL_TYPES.includes(key as PanelType) ? (key as PanelType) : null));
+    if (!type) continue;
+    out[key] = {
+      id: v.id ?? key,
+      type,
+      title: v.title,
+      visible: v.visible ?? true,
+      x: v.x ?? 5,
+      y: v.y ?? 5,
+      w: v.w ?? 30,
+      h: v.h ?? 30,
+      z: v.z ?? 1,
+    };
+  }
+  return out;
+}
+
 export const workspace = {
   get(): WorkspaceState {
     return state;
   },
   set(updater: (s: WorkspaceState) => WorkspaceState) {
     state = updater(state);
-    // Reflect into runtime subsystems where relevant.
     sequencer.load(state.pattern);
     midiLearn.bindings = state.midiBindings;
     chaos.routes = state.chaosRoutes;
@@ -205,26 +241,67 @@ export const workspace = {
     state = updater(state);
     notify();
   },
-  setPanelVisible(id: PanelId, visible: boolean) {
-    workspace.patch((s) => ({
-      ...s,
-      layouts: { ...s.layouts, [id]: { ...s.layouts[id], visible } },
-    }));
-  },
-  setPanelLayout(id: PanelId, patch: Partial<PanelLayout>) {
-    workspace.patch((s) => ({
-      ...s,
-      layouts: { ...s.layouts, [id]: { ...s.layouts[id], ...patch } },
-    }));
-  },
-  bringPanelToFront(id: PanelId) {
+
+  // ===== Panel instances =====
+  setPanelVisible(id: string, visible: boolean) {
     workspace.patch((s) => {
+      const cur = s.layouts[id];
+      if (!cur) return s;
+      return { ...s, layouts: { ...s.layouts, [id]: { ...cur, visible } } };
+    });
+  },
+  setPanelLayout(id: string, patch: Partial<PanelLayout>) {
+    workspace.patch((s) => {
+      const cur = s.layouts[id];
+      if (!cur) return s;
+      return { ...s, layouts: { ...s.layouts, [id]: { ...cur, ...patch } } };
+    });
+  },
+  setPanelTitle(id: string, title: string) {
+    workspace.patch((s) => {
+      const cur = s.layouts[id];
+      if (!cur) return s;
+      return { ...s, layouts: { ...s.layouts, [id]: { ...cur, title } } };
+    });
+  },
+  bringPanelToFront(id: string) {
+    workspace.patch((s) => {
+      const cur = s.layouts[id];
+      if (!cur) return s;
       const maxZ = Math.max(...Object.values(s.layouts).map((l) => l.z));
-      if (s.layouts[id].z === maxZ) return s;
-      return {
-        ...s,
-        layouts: { ...s.layouts, [id]: { ...s.layouts[id], z: maxZ + 1 } },
+      if (cur.z === maxZ) return s;
+      return { ...s, layouts: { ...s.layouts, [id]: { ...cur, z: maxZ + 1 } } };
+    });
+  },
+  /** Spawn a new panel instance of the given type at a cascaded offset. */
+  addPanelInstance(type: PanelType): string {
+    const id = `${type}-${Math.random().toString(36).slice(2, 7)}`;
+    workspace.patch((s) => {
+      const existing = Object.values(s.layouts).filter((l) => l.type === type).length;
+      const maxZ = Math.max(0, ...Object.values(s.layouts).map((l) => l.z));
+      const offset = (existing * 3) % 30;
+      const seed = DEFAULT_LAYOUTS[type] ?? DEFAULT_LAYOUTS.synth;
+      const inst: PanelInstance = {
+        id,
+        type,
+        title: `${PANEL_LABELS[type]} ${existing + 1}`,
+        visible: true,
+        x: Math.min(70, (seed.x + offset)),
+        y: Math.min(70, (seed.y + offset)),
+        w: seed.w,
+        h: seed.h,
+        z: maxZ + 1,
       };
+      return { ...s, layouts: { ...s.layouts, [id]: inst } };
+    });
+    return id;
+  },
+  removePanelInstance(id: string) {
+    workspace.patch((s) => {
+      if (!s.layouts[id]) return s;
+      const next = { ...s.layouts };
+      delete next[id];
+      return { ...s, layouts: next };
     });
   },
   resetLayouts() {
@@ -257,7 +334,6 @@ export const workspace = {
       };
     });
   },
-  /** Change a track's instrument kind, preserving steps. */
   setTrackKind(id: string, kind: TrackKind) {
     workspace.set((s) => ({
       ...s,
@@ -269,7 +345,6 @@ export const workspace = {
                 ...t,
                 kind,
                 name: kind.toUpperCase(),
-                // Reset notes to a sensible default when toggling synth/drum.
                 steps: t.steps.map((st) =>
                   kind === "synth" && st.note === undefined ? { ...st, note: 48 } : st,
                 ),
@@ -353,7 +428,6 @@ export const workspace = {
     listeners.add(l);
     return () => listeners.delete(l);
   },
-  /** Persist current workspace. */
   save(name = "default") {
     try {
       const payload = { name, savedAt: Date.now(), state };
@@ -367,11 +441,10 @@ export const workspace = {
       const raw = localStorage.getItem(STORAGE_KEY + ":" + name);
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { state: Partial<WorkspaceState> };
-      // Merge with defaults for forward compatibility with older saves.
       const merged: WorkspaceState = {
         ...initial(),
         ...parsed.state,
-        layouts: { ...structuredClone(DEFAULT_LAYOUTS), ...(parsed.state.layouts ?? {}) },
+        layouts: migrateLayouts(parsed.state.layouts),
         palette: parsed.state.palette ?? "amber",
       };
       workspace.set(() => merged);

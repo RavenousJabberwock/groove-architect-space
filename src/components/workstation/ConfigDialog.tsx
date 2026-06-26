@@ -1,27 +1,24 @@
-import { X, RotateCcw } from "lucide-react";
+import { X, RotateCcw, Plus, Trash2 } from "lucide-react";
 import { PALETTES } from "@/themes/palettes";
-import { workspace, useWorkspace, PANEL_IDS, type PanelId } from "@/state/workspace";
+import {
+  workspace,
+  useWorkspace,
+  PANEL_TYPES,
+  PANEL_LABELS,
+  type PanelType,
+} from "@/state/workspace";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-const PANEL_LABELS: Record<PanelId, string> = {
-  sequencer: "Sequencer",
-  synth: "Synth",
-  chaos: "Chaos Pad",
-  mixer: "Mixer",
-  browser: "Browser",
-  music: "Music Board",
-  soundboard: "Soundboard",
-};
-
 export function ConfigDialog({ open, onClose }: Props) {
   const palette = useWorkspace((s) => s.palette);
   const layouts = useWorkspace((s) => s.layouts);
 
   if (!open) return null;
+  const instances = Object.values(layouts);
 
   return (
     <div
@@ -81,7 +78,7 @@ export function ConfigDialog({ open, onClose }: Props) {
         <section className="mb-6">
           <div className="mb-2 flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              Panels
+              Add window
             </div>
             <button
               onClick={() => workspace.resetLayouts()}
@@ -90,21 +87,54 @@ export function ConfigDialog({ open, onClose }: Props) {
               <RotateCcw className="h-3 w-3" /> Reset layout
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {PANEL_IDS.map((id) => (
-              <label
-                key={id}
-                className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs"
+          <div className="mb-3 grid grid-cols-3 gap-1">
+            {PANEL_TYPES.map((t: PanelType) => (
+              <button
+                key={t}
+                onClick={() => workspace.addPanelInstance(t)}
+                className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:bg-secondary"
               >
-                <input
-                  type="checkbox"
-                  checked={!!layouts[id]?.visible}
-                  onChange={(e) => workspace.setPanelVisible(id, e.target.checked)}
-                  className="accent-[var(--color-primary)]"
-                />
-                {PANEL_LABELS[id]}
-              </label>
+                <Plus className="h-3 w-3" /> {PANEL_LABELS[t]}
+              </button>
             ))}
+          </div>
+          <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Windows
+          </div>
+          <div className="grid grid-cols-1 gap-1">
+            {instances.map((inst) => {
+              const isDefault = inst.id === inst.type;
+              return (
+                <div
+                  key={inst.id}
+                  className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!inst.visible}
+                    onChange={(e) => workspace.setPanelVisible(inst.id, e.target.checked)}
+                    className="accent-[var(--color-primary)]"
+                  />
+                  <input
+                    value={inst.title || PANEL_LABELS[inst.type]}
+                    onChange={(e) => workspace.setPanelTitle(inst.id, e.target.value)}
+                    className="flex-1 rounded border border-border bg-background px-1 py-0.5 text-xs"
+                  />
+                  <span className="text-[10px] uppercase text-muted-foreground">
+                    {PANEL_LABELS[inst.type]}
+                  </span>
+                  {!isDefault && (
+                    <button
+                      onClick={() => workspace.removePanelInstance(inst.id)}
+                      aria-label="Remove window"
+                      className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
 
