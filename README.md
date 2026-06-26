@@ -2,7 +2,7 @@
 
 A modular, browser-based hybrid music workstation built with React, TypeScript, and the Web Audio API. It combines a drum machine, subtractive synthesizer, Kaoss-style chaos pad, and an Elektron-inspired step sequencer with polymeter, probability, and conditional trigs — all wrapped in a movable, themeable hardware-style UI.
 
-> Status: **MVP foundation.** The core audio engine, sequencer, MIDI layer, chaos pad, and workspace system are functional. Wavetable/FM synthesis, song mode, full automation curves, and Cloud-backed workspaces are scaffolded for follow-up work.
+> Status: **MVP foundation.** The core audio engine, sequencer, MIDI layer, chaos pad, and workspace system are functional. Recent additions: undo/redo, command palette (⌘K), per-track 3-band EQ + peak meters, global reverb + delay send buses, per-track swing & humanize, randomized ambient soundboard pads, and synth note-repeat. Piano roll, song-mode pattern chaining, and Cloud-backed workspaces remain on the roadmap.
 
 You can make some music live at https://groove-architect-space.lovable.app/
 
