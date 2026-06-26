@@ -170,8 +170,8 @@ function MusicRow({
             </button>
           </div>
         )}
-        <div className="truncate text-[10px] text-muted-foreground">
-          {track.url ? track.url.replace(/^data:.*?;base64,/, "[uploaded file]").slice(0, 60) : "no source"}
+        <div className="truncate text-[10px] text-muted-foreground" title={track.url || "no source"}>
+          {track.url ? track.url.replace(/^data:.*?;base64,.*/, "[uploaded file]") : "no source"}
         </div>
       </div>
       <input

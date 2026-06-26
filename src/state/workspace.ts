@@ -70,12 +70,32 @@ export interface MusicTrack {
 }
 
 /** A one-shot sound effect cue. */
+export type SfxKind = "sample" | "midi" | "synth";
+
+export interface SfxAdsr {
+  a: number;
+  d: number;
+  s: number;
+  r: number;
+}
+
 export interface SoundEffect {
   id: string;
   title: string;
-  url: string;
   volume: number; // 0..1
   color?: string; // optional pad color hint
+  /** How this pad makes sound. Defaults to "sample". */
+  kind?: SfxKind;
+  /** sample: audio file or stream URL (also legacy field). */
+  url?: string;
+  /** midi: which drum voice to trigger. */
+  midiKind?: string;
+  /** synth: MIDI note number to play. */
+  note?: number;
+  /** synth: ADSR envelope (seconds, sustain 0..1). */
+  adsr?: SfxAdsr;
+  /** synth: oscillator waveform. */
+  wave?: OscillatorType;
 }
 
 export interface WorkspaceState {
@@ -126,12 +146,17 @@ const DEFAULT_MUSIC: MusicTrack[] = [
 ];
 
 const DEFAULT_SFX: SoundEffect[] = [
-  { id: "s-sword", title: "Sword Clash", url: "", volume: 0.9 },
-  { id: "s-door", title: "Door Creak", url: "", volume: 0.9 },
-  { id: "s-thunder", title: "Thunder", url: "", volume: 0.9 },
-  { id: "s-spell", title: "Magic Spell", url: "", volume: 0.9 },
-  { id: "s-coin", title: "Coin Drop", url: "", volume: 0.9 },
-  { id: "s-roar", title: "Monster Roar", url: "", volume: 0.9 },
+  { id: "s-kick", title: "Kick", kind: "midi", midiKind: "kick", volume: 0.9 },
+  { id: "s-snare", title: "Snare", kind: "midi", midiKind: "snare", volume: 0.9 },
+  { id: "s-hat", title: "Hi-Hat", kind: "midi", midiKind: "hat", volume: 0.8 },
+  { id: "s-clap", title: "Clap", kind: "midi", midiKind: "clap", volume: 0.9 },
+  { id: "s-cowbell", title: "Cowbell", kind: "midi", midiKind: "cowbell", volume: 0.8 },
+  { id: "s-zap", title: "Synth Zap", kind: "synth", note: 72, wave: "square",
+    adsr: { a: 0.001, d: 0.08, s: 0.0, r: 0.05 }, volume: 0.7 },
+  { id: "s-stab", title: "Synth Stab", kind: "synth", note: 60, wave: "sawtooth",
+    adsr: { a: 0.005, d: 0.3, s: 0.0, r: 0.2 }, volume: 0.7 },
+  { id: "s-sword", title: "Sword Clash", kind: "sample", url: "", volume: 0.9 },
+  { id: "s-thunder", title: "Thunder", kind: "sample", url: "", volume: 0.9 },
 ];
 
 const STORAGE_KEY = "hmw.workspace.v1";
@@ -294,12 +319,17 @@ export const workspace = {
   },
 
   // ===== Soundboard =====
-  addSfx(t: Partial<SoundEffect> & { title: string; url: string }) {
+  addSfx(t: Partial<SoundEffect> & { title: string }) {
     const id = t.id ?? `s-${Math.random().toString(36).slice(2, 8)}`;
     const sfx: SoundEffect = {
       id,
       title: t.title,
-      url: t.url,
+      kind: t.kind ?? "sample",
+      url: t.url ?? "",
+      midiKind: t.midiKind,
+      note: t.note,
+      adsr: t.adsr,
+      wave: t.wave,
       volume: t.volume ?? 0.9,
       color: t.color,
     };

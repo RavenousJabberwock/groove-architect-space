@@ -17,7 +17,9 @@ class MediaPlayer {
     if (!el) {
       el = new Audio();
       el.preload = "auto";
-      el.crossOrigin = "anonymous";
+      // Note: do NOT set crossOrigin for plain playback. Many media hosts
+      // (e.g. soundhelix.com) don't send CORS headers, and requesting
+      // "anonymous" mode forces a CORS check that blocks the load.
       this.els.set(id, el);
     }
     if (el.src !== src && src) {
