@@ -1,5 +1,6 @@
-import { X, RotateCcw, Plus, Trash2 } from "lucide-react";
-import { PALETTES } from "@/themes/palettes";
+import { useState } from "react";
+import { X, RotateCcw, Plus, Trash2, Palette as PaletteIcon } from "lucide-react";
+import { PALETTES, paletteFromColors } from "@/themes/palettes";
 import {
   workspace,
   useWorkspace,
@@ -15,11 +16,14 @@ interface Props {
 
 export function ConfigDialog({ open, onClose }: Props) {
   const palette = useWorkspace((s) => s.palette);
+  const customPalettes = useWorkspace((s) => s.customPalettes);
   const layouts = useWorkspace((s) => s.layouts);
   const duck = useWorkspace((s) => s.duck);
+  const [showCreator, setShowCreator] = useState(false);
 
   if (!open) return null;
   const instances = Object.values(layouts);
+  const allPals = [...PALETTES, ...customPalettes];
 
   return (
     <div
@@ -44,36 +48,61 @@ export function ConfigDialog({ open, onClose }: Props) {
         </div>
 
         <section className="mb-6">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            Palette
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              Palette
+            </div>
+            <button
+              onClick={() => setShowCreator((v) => !v)}
+              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] uppercase tracking-wider hover:bg-secondary"
+            >
+              <PaletteIcon className="h-3 w-3" /> {showCreator ? "Done" : "New palette"}
+            </button>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {PALETTES.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => workspace.setPalette(p.id)}
-                className={`flex items-center gap-3 rounded border bg-background p-3 text-left transition hover:border-primary ${
-                  palette === p.id ? "border-primary ring-1 ring-primary" : "border-border"
-                }`}
-              >
-                <div className="flex gap-1">
-                  {p.swatch.map((c, i) => (
-                    <div
-                      key={i}
-                      className="h-6 w-3 rounded-sm border border-black/40"
-                      style={{ background: c }}
-                    />
-                  ))}
+            {allPals.map((p) => {
+              const isCustom = customPalettes.some((c) => c.id === p.id);
+              return (
+                <div
+                  key={p.id}
+                  className={`group relative flex items-center gap-3 rounded border bg-background p-3 text-left transition hover:border-primary ${
+                    palette === p.id ? "border-primary ring-1 ring-primary" : "border-border"
+                  }`}
+                >
+                  <button
+                    onClick={() => workspace.setPalette(p.id)}
+                    className="flex flex-1 items-center gap-3 text-left"
+                  >
+                    <div className="flex gap-1">
+                      {p.swatch.map((c, i) => (
+                        <div
+                          key={i}
+                          className="h-6 w-3 rounded-sm border border-black/40"
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium">{p.name}</div>
+                      <div className="truncate text-[10px] text-muted-foreground">
+                        {p.description}
+                      </div>
+                    </div>
+                  </button>
+                  {isCustom && (
+                    <button
+                      onClick={() => workspace.removeCustomPalette(p.id)}
+                      aria-label="Delete custom palette"
+                      className="rounded p-1 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium">{p.name}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">
-                    {p.description}
-                  </div>
-                </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
+          {showCreator && <CustomPaletteCreator onSave={() => setShowCreator(false)} />}
         </section>
 
         <section className="mb-6">
