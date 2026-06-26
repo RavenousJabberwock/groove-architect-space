@@ -47,6 +47,12 @@ export function Workstation() {
           <PanelWindow id="browser" title="Browser">
             <BrowserPanel />
           </PanelWindow>
+          <PanelWindow id="music" title="Music Board">
+            <MusicBoardPanel />
+          </PanelWindow>
+          <PanelWindow id="soundboard" title="Soundboard">
+            <SoundboardPanel />
+          </PanelWindow>
         </div>
       </div>
     </div>
