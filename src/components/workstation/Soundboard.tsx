@@ -1,27 +1,63 @@
 import { useRef, useState } from "react";
 import { Plus, Trash2, Upload, Pencil, Check, X } from "lucide-react";
-import { useWorkspace, workspace, type SoundEffect } from "@/state/workspace";
+import { useWorkspace, workspace, type SoundEffect, type SfxKind } from "@/state/workspace";
 import { mediaPlayer } from "@/audio/media-player";
 import { readId3Title, titleFromUrl } from "@/audio/id3";
+import { engine, ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
+import { boot } from "@/state/setup";
 import { toast } from "sonner";
 
 /**
- * Soundboard — grid of one-shot SFX pads for tabletop RPGs. Click a pad
- * to trigger; right-click (or the inline edit button) to rename / replace
- * the source. New pads can be added from a URL or file upload.
+ * Soundboard — grid of one-shot SFX pads for tabletop RPGs.
+ *
+ * Each pad has a `kind`:
+ *   - "sample" : plays an audio file/URL through the media player.
+ *   - "midi"   : triggers a built-in percussion voice (kick, snare, …).
+ *   - "synth"  : plays a single note with a user-defined ADSR + waveform.
+ *
+ * Click a pad to trigger; right-click (or the inline edit button) to edit.
  */
+
+const DRUM_KINDS = ALL_TRACK_KINDS.filter((k) => k !== "synth") as TrackKind[];
+const WAVES: OscillatorType[] = ["sine", "triangle", "sawtooth", "square"];
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+const DEFAULT_ADSR = { a: 0.01, d: 0.14, s: 0.5, r: 0.45 };
+
 export function SoundboardPanel() {
   const sfx = useWorkspace((s) => s.soundEffects);
   const master = useWorkspace((s) => s.sfxMaster);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const trigger = (s: SoundEffect) => {
-    if (!s.url) {
-      toast.error(`"${s.title}" has no audio yet — edit to add a URL or file`);
+  const trigger = async (s: SoundEffect) => {
+    const vol = s.volume * master;
+    const kind: SfxKind = s.kind ?? "sample";
+    if (kind === "sample") {
+      if (!s.url) {
+        toast.error(`"${s.title}" has no audio yet — edit to add a URL or file`);
+        return;
+      }
+      void mediaPlayer.trigger(s.id, s.url, vol);
       return;
     }
-    void mediaPlayer.trigger(s.id, s.url, s.volume * master);
+    await boot();
+    if (kind === "midi") {
+      if (!s.midiKind) {
+        toast.error(`"${s.title}" has no MIDI instrument selected`);
+        return;
+      }
+      engine.triggerOneShot(s.midiKind as TrackKind, { velocity: vol });
+      return;
+    }
+    if (kind === "synth") {
+      engine.triggerOneShot("synth", {
+        note: s.note ?? 60,
+        velocity: vol,
+        adsr: s.adsr ?? DEFAULT_ADSR,
+        wave: s.wave ?? "sawtooth",
+      });
+    }
   };
 
   return (
@@ -42,40 +78,14 @@ export function SoundboardPanel() {
 
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-auto sm:grid-cols-3">
         {sfx.map((s) => (
-          <div key={s.id} className="relative">
-            <button
-              onClick={() => trigger(s)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setEditingId(s.id);
-              }}
-              className={`flex h-16 w-full flex-col items-center justify-center rounded border border-border px-2 text-center text-xs transition active:scale-[0.97] ${
-                s.url ? "bg-secondary hover:brightness-110" : "bg-card/40 text-muted-foreground"
-              }`}
-            >
-              <span className="line-clamp-2 leading-tight">{s.title}</span>
-              {!s.url && <span className="text-[9px] opacity-60">tap to configure</span>}
-            </button>
-            <div className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition group-hover:opacity-100 hover:opacity-100">
-              <button
-                onClick={() => setEditingId(s.id)}
-                className="rounded bg-background/80 p-0.5 hover:bg-background"
-                aria-label="Edit"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                onClick={() => workspace.removeSfx(s.id)}
-                className="rounded bg-background/80 p-0.5 text-destructive hover:bg-background"
-                aria-label="Remove"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-            {editingId === s.id && (
-              <EditSfx sfx={s} onDone={() => setEditingId(null)} />
-            )}
-          </div>
+          <PadCell
+            key={s.id}
+            sfx={s}
+            editing={editingId === s.id}
+            onTrigger={() => trigger(s)}
+            onEdit={() => setEditingId(s.id)}
+            onClose={() => setEditingId(null)}
+          />
         ))}
 
         <button
@@ -91,10 +101,68 @@ export function SoundboardPanel() {
   );
 }
 
+function PadCell({
+  sfx,
+  editing,
+  onTrigger,
+  onEdit,
+  onClose,
+}: {
+  sfx: SoundEffect;
+  editing: boolean;
+  onTrigger: () => void;
+  onEdit: () => void;
+  onClose: () => void;
+}) {
+  const kind: SfxKind = sfx.kind ?? "sample";
+  const ready = kind !== "sample" || !!sfx.url;
+  const badge = kind === "midi" ? (sfx.midiKind ?? "midi") : kind === "synth" ? noteName(sfx.note ?? 60) : "sample";
+  return (
+    <div className="relative">
+      <button
+        onClick={onTrigger}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onEdit();
+        }}
+        className={`flex h-16 w-full flex-col items-center justify-center rounded border border-border px-2 text-center text-xs transition active:scale-[0.97] ${
+          ready ? "bg-secondary hover:brightness-110" : "bg-card/40 text-muted-foreground"
+        }`}
+      >
+        <span className="line-clamp-2 leading-tight">{sfx.title}</span>
+        <span className="mt-0.5 text-[9px] uppercase tracking-wider opacity-60">{badge}</span>
+        {!ready && <span className="text-[9px] opacity-60">tap to configure</span>}
+      </button>
+      <div className="absolute right-1 top-1 flex gap-0.5">
+        <button
+          onClick={onEdit}
+          className="rounded bg-background/80 p-0.5 hover:bg-background"
+          aria-label="Edit"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => workspace.removeSfx(sfx.id)}
+          className="rounded bg-background/80 p-0.5 text-destructive hover:bg-background"
+          aria-label="Remove"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      {editing && <EditSfx sfx={sfx} onDone={onClose} />}
+    </div>
+  );
+}
+
 function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
   const [title, setTitle] = useState(sfx.title);
-  const [url, setUrl] = useState(sfx.url);
+  const [kind, setKind] = useState<SfxKind>(sfx.kind ?? "sample");
+  const [url, setUrl] = useState(sfx.url ?? "");
   const [volume, setVolume] = useState(sfx.volume);
+  const [midiKind, setMidiKind] = useState<string>(sfx.midiKind ?? "kick");
+  const [note, setNote] = useState(sfx.note ?? 60);
+  const [wave, setWave] = useState<OscillatorType>(sfx.wave ?? "sawtooth");
+  const [adsr, setAdsr] = useState(sfx.adsr ?? DEFAULT_ADSR);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (f: File) => {
@@ -109,24 +177,123 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
   };
 
   const save = () => {
-    workspace.updateSfx(sfx.id, { title: title.trim() || sfx.title, url, volume });
+    workspace.updateSfx(sfx.id, {
+      title: title.trim() || sfx.title,
+      kind,
+      url,
+      volume,
+      midiKind: kind === "midi" ? midiKind : undefined,
+      note: kind === "synth" ? note : undefined,
+      wave: kind === "synth" ? wave : undefined,
+      adsr: kind === "synth" ? adsr : undefined,
+    });
     onDone();
   };
 
   return (
-    <div className="panel absolute left-0 top-full z-50 mt-1 w-64 space-y-1 p-2">
+    <div className="panel absolute left-0 top-full z-50 mt-1 w-72 space-y-1.5 p-2">
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Title"
         className="readout w-full rounded border border-border bg-background px-2 py-1 text-xs"
       />
-      <input
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="Audio URL"
-        className="readout w-full rounded border border-border bg-background px-2 py-1 text-xs"
-      />
+      <div className="flex gap-1">
+        {(["sample", "midi", "synth"] as SfxKind[]).map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`flex-1 rounded border border-border px-2 py-1 text-[10px] uppercase ${
+              kind === k ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+            }`}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
+
+      {kind === "sample" && (
+        <>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Audio URL"
+            className="readout w-full rounded border border-border bg-background px-2 py-1 text-xs"
+          />
+          <div className="flex gap-1">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="audio/*"
+              hidden
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex flex-1 items-center justify-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-secondary"
+            >
+              <Upload className="h-3 w-3" /> Upload
+            </button>
+          </div>
+        </>
+      )}
+
+      {kind === "midi" && (
+        <label className="flex items-center gap-2 text-xs">
+          <span className="text-[10px] uppercase text-muted-foreground">Voice</span>
+          <select
+            value={midiKind}
+            onChange={(e) => setMidiKind(e.target.value)}
+            className="readout flex-1 rounded border border-border bg-background px-1 py-1 text-xs"
+          >
+            {DRUM_KINDS.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {kind === "synth" && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[10px] uppercase text-muted-foreground">Note</span>
+            <input
+              type="number"
+              min={0}
+              max={127}
+              value={note}
+              onChange={(e) => setNote(Number(e.target.value))}
+              className="readout w-16 rounded border border-border bg-background px-1 text-xs"
+            />
+            <span className="text-[10px] text-muted-foreground">{noteName(note)}</span>
+            <select
+              value={wave}
+              onChange={(e) => setWave(e.target.value as OscillatorType)}
+              className="readout ml-auto rounded border border-border bg-background px-1 py-0.5 text-xs"
+            >
+              {WAVES.map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+          </div>
+          {(["a", "d", "s", "r"] as const).map((k) => (
+            <label key={k} className="flex items-center gap-2 text-[10px] uppercase">
+              <span className="w-3 text-muted-foreground">{k}</span>
+              <input
+                type="range"
+                min={0}
+                max={k === "s" ? 1 : 2}
+                step={0.005}
+                value={adsr[k]}
+                onChange={(e) => setAdsr({ ...adsr, [k]: Number(e.target.value) })}
+                className="flex-1 accent-[var(--color-primary)]"
+              />
+              <span className="readout w-10 text-right normal-case">
+                {k === "s" ? adsr[k].toFixed(2) : `${(adsr[k] * 1000).toFixed(0)}ms`}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <span className="text-[10px] uppercase text-muted-foreground">Vol</span>
         <input
@@ -140,23 +307,11 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
         />
         <span className="readout w-8 text-right text-xs">{Math.round(volume * 100)}</span>
       </div>
+
       <div className="flex gap-1">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="audio/*"
-          hidden
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-secondary"
-        >
-          <Upload className="h-3 w-3" /> Upload
-        </button>
         <button
           onClick={save}
-          className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:brightness-110"
+          className="flex flex-1 items-center justify-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:brightness-110"
         >
           <Check className="h-3 w-3" /> Save
         </button>
@@ -173,6 +328,7 @@ function EditSfx({ sfx, onDone }: { sfx: SoundEffect; onDone: () => void }) {
 
 function AddSfxForm({ onDone }: { onDone: () => void }) {
   const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<SfxKind>("sample");
   const [url, setUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -185,19 +341,40 @@ function AddSfxForm({ onDone }: { onDone: () => void }) {
     });
     workspace.addSfx({
       title: title.trim() || id3 || f.name.replace(/\.[a-z0-9]+$/i, ""),
+      kind: "sample",
       url: dataUrl,
     });
     toast.success("Sound added");
     onDone();
   };
 
-  const submitUrl = () => {
-    if (!url.trim()) return;
-    workspace.addSfx({
-      title: title.trim() || titleFromUrl(url),
-      url: url.trim(),
-    });
-    toast.success("Sound added");
+  const submit = () => {
+    if (kind === "sample") {
+      if (!url.trim() && !title.trim()) {
+        toast.error("Need a URL or title");
+        return;
+      }
+      workspace.addSfx({
+        title: title.trim() || titleFromUrl(url),
+        kind: "sample",
+        url: url.trim(),
+      });
+    } else if (kind === "midi") {
+      workspace.addSfx({
+        title: title.trim() || "Kick",
+        kind: "midi",
+        midiKind: "kick",
+      });
+    } else {
+      workspace.addSfx({
+        title: title.trim() || "Synth Pad",
+        kind: "synth",
+        note: 60,
+        wave: "sawtooth",
+        adsr: DEFAULT_ADSR,
+      });
+    }
+    toast.success("Sound added — right-click to configure");
     onDone();
   };
 
@@ -206,36 +383,52 @@ function AddSfxForm({ onDone }: { onDone: () => void }) {
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title (auto from ID3 / URL)"
+        placeholder="Title"
         className="readout w-full rounded border border-border bg-background px-2 py-1 text-xs"
       />
       <div className="flex gap-1">
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Audio URL"
-          className="readout flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
-        />
-        <button
-          onClick={submitUrl}
-          className="rounded bg-primary px-2 text-xs text-primary-foreground"
-        >
-          <Check className="h-3 w-3" />
-        </button>
+        {(["sample", "midi", "synth"] as SfxKind[]).map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`flex-1 rounded border border-border px-2 py-1 text-[10px] uppercase ${
+              kind === k ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+            }`}
+          >
+            {k}
+          </button>
+        ))}
       </div>
+      {kind === "sample" && (
+        <div className="flex gap-1">
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Audio URL"
+            className="readout flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="audio/*"
+            hidden
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="rounded border border-border px-2 text-xs hover:bg-secondary"
+            title="Upload file"
+          >
+            <Upload className="h-3 w-3" />
+          </button>
+        </div>
+      )}
       <div className="flex gap-1">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="audio/*"
-          hidden
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
         <button
-          onClick={() => fileRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-secondary"
+          onClick={submit}
+          className="flex flex-1 items-center justify-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground"
         >
-          <Upload className="h-3 w-3" /> Upload file
+          <Check className="h-3 w-3" /> Add
         </button>
         <button
           onClick={onDone}
