@@ -1,20 +1,24 @@
 import { useState } from "react";
 import { engine, ALL_TRACK_KINDS, type TrackKind } from "@/audio/engine";
-import { bus } from "@/audio/bus";
 import { boot } from "@/state/setup";
 import { useWorkspace } from "@/state/workspace";
 import { midiLearn } from "@/midi/learn";
 import { toast } from "sonner";
+import { SYNTH_PRESETS, PRESET_GROUPS, getPreset } from "@/audio/synth-presets";
 
 /**
  * Synth panel — two-octave piano keyboard with selectable instrument.
  *
- * The instrument selector lets the user route the keyboard through any of
- * the built-in voices (subtractive synth or any MIDI percussion kind). When
- * "synth" is selected the keyboard fires the project's synth track so MIDI
- * Learn / sequencer routing still work; for percussion kinds we trigger
- * one-shot voices directly through the engine (pitch is ignored by drum
- * voices that don't tune).
+ * Two instrument families share one selector:
+ *  - **Synth presets** (Piano, Strings, Bass, Lead, etc.) — built from
+ *    `SYNTH_PRESETS`. Each preset chooses a waveform, filter setting, and
+ *    ADSR envelope; voices are pitched per key via MIDI note.
+ *  - **Percussion** — every drum voice in `ALL_TRACK_KINDS`, also
+ *    pitch-shifted by the key pressed (relative to C4).
+ *
+ * Each Synth window instance keeps its own instrument + octave selection in
+ * local React state, so users can spawn multiple synth windows tuned to
+ * different sounds and play them side by side.
  */
 
 const WHITE: Array<{ semi: number; label: string }> = [
@@ -22,42 +26,41 @@ const WHITE: Array<{ semi: number; label: string }> = [
   { semi: 5, label: "F" }, { semi: 7, label: "G" }, { semi: 9, label: "A" },
   { semi: 11, label: "B" },
 ];
-// Black-key semitone offsets indexed by the white key they sit *after*.
-// undefined = no black key after that white (E and B).
 const BLACK_AFTER: Array<number | undefined> = [1, 3, undefined, 6, 8, 10, undefined];
 const OCTAVES = 2;
 
 const DRUM_KINDS = ALL_TRACK_KINDS.filter((k) => k !== "synth") as TrackKind[];
 
-export function SynthPanel() {
-  const pattern = useWorkspace((s) => s.pattern);
+interface Props {
+  /** Workspace instance id. Currently used as a stable key; kept for future per-instance persistence. */
+  instanceId?: string;
+}
+
+export function SynthPanel(_props: Props) {
   const mode = useWorkspace((s) => s.mode);
-  const synthTrack = pattern.tracks.find((t) => t.kind === "synth");
-  const [octave, setOctave] = useState(4); // bottom octave (C4 = 60)
-  const [instrument, setInstrument] = useState<TrackKind>("synth");
+  const [octave, setOctave] = useState(4);
+  // `instrument` is either a synth preset id ("piano", "leadsaw", ...) or
+  // a percussion kind prefixed with "drum:" (e.g. "drum:snare").
+  const [instrument, setInstrument] = useState<string>("piano");
 
   const play = async (note: number) => {
     await boot();
-    if (instrument === "synth") {
-      if (!synthTrack) {
-        // Fall back to a one-shot if there's no synth track yet.
-        engine.triggerOneShot("synth", { note, velocity: 0.9 });
-        return;
-      }
-      bus.emit("step:trigger", {
-        trackId: synthTrack.id,
-        time: engine.now(),
-        velocity: 0.9,
-        note,
-      });
+    if (instrument.startsWith("drum:")) {
+      const kind = instrument.slice(5) as TrackKind;
+      engine.triggerOneShot(kind, { velocity: 0.9, note });
       return;
     }
-    // Percussion kinds — pass the key's MIDI note so the voice is pitched
-    // relative to C4. Drum factories that don't tune simply ignore it.
-    engine.triggerOneShot(instrument, { velocity: 0.9, note });
+    const preset = getPreset(instrument) ?? SYNTH_PRESETS[0];
+    engine.triggerOneShot("synth", {
+      note,
+      velocity: 0.9,
+      wave: preset.wave,
+      adsr: preset.adsr,
+      cutoff: preset.cutoff,
+      resonance: preset.resonance,
+    });
   };
 
-  // Build flat list of (note, label) for the visible range.
   const whiteKeys: Array<{ note: number; label: string }> = [];
   for (let o = 0; o < OCTAVES; o++) {
     for (const w of WHITE) {
@@ -74,13 +77,19 @@ export function SynthPanel() {
           <span>Inst</span>
           <select
             value={instrument}
-            onChange={(e) => setInstrument(e.target.value as TrackKind)}
-            className="readout rounded border border-border bg-background px-1 py-0.5 text-[10px]"
+            onChange={(e) => setInstrument(e.target.value)}
+            className="readout max-w-[140px] rounded border border-border bg-background px-1 py-0.5 text-[10px]"
           >
-            <option value="synth">Subtractive</option>
-            <optgroup label="Percussion">
+            {PRESET_GROUPS.map((group) => (
+              <optgroup key={group} label={group}>
+                {SYNTH_PRESETS.filter((p) => p.group === group).map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </optgroup>
+            ))}
+            <optgroup label="Percussion (pitched)">
               {DRUM_KINDS.map((k) => (
-                <option key={k} value={k}>{k}</option>
+                <option key={k} value={`drum:${k}`}>{k}</option>
               ))}
             </optgroup>
           </select>
@@ -110,18 +119,14 @@ export function SynthPanel() {
             </button>
           ))}
         </div>
-        {/* Black keys overlay — positioned at fractional offsets between
-            white keys. Each black sits centered on the gap between two
-            consecutive whites. */}
         <div className="pointer-events-none absolute inset-0">
           {whiteKeys.map((wk, i) => {
             const slot = i % 7;
             const blackSemi = BLACK_AFTER[slot];
             if (blackSemi === undefined) return null;
-            if (i === whiteKeys.length - 1) return null; // no room past last white
+            if (i === whiteKeys.length - 1) return null;
             const whiteW = 100 / whiteKeys.length;
             const left = (i + 1) * whiteW - whiteW * 0.3;
-            // Compute black note: octave of this white + its black semitone
             const baseOctave = Math.floor(wk.note / 12);
             const note = 12 * baseOctave + blackSemi;
             return (

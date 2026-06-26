@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactElement } from "react";
 import { TopBar } from "./TopBar";
 import { SequencerPanel } from "./Sequencer";
 import { ChaosPadPanel } from "./ChaosPad";
@@ -19,9 +19,9 @@ import { applyPalette } from "@/themes/palettes";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 /** Map panel type → React component. Used by the dynamic renderer below. */
-const PANEL_COMPONENTS: Record<PanelType, (props: { instanceId: string }) => JSX.Element> = {
+const PANEL_COMPONENTS: Record<PanelType, (instanceId: string) => ReactElement> = {
   sequencer: () => <SequencerPanel />,
-  synth: ({ instanceId }) => <SynthPanel instanceId={instanceId} />,
+  synth: (instanceId) => <SynthPanel instanceId={instanceId} />,
   chaos: () => <ChaosPadPanel />,
   mixer: () => <MixerPanel />,
   browser: () => <BrowserPanel />,
@@ -55,8 +55,8 @@ export function Workstation() {
       <div className="relative flex-1 overflow-hidden p-2">
         <div className="relative h-full w-full">
           {instances.map((inst) => {
-            const Comp = PANEL_COMPONENTS[inst.type];
-            if (!Comp) return null;
+            const render = PANEL_COMPONENTS[inst.type];
+            if (!render) return null;
             return (
               <PanelWindow
                 key={inst.id}
@@ -64,7 +64,7 @@ export function Workstation() {
                 title={PANEL_LABELS[inst.type]}
                 removable={!isDefaultInstance(inst)}
               >
-                <Comp instanceId={inst.id} />
+                {render(inst.id)}
               </PanelWindow>
             );
           })}
