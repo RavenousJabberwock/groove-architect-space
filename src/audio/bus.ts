@@ -20,6 +20,8 @@ export type BusEvents = {
   "midi:message": { status: number; data1: number; data2: number; portId?: string };
   /** MIDI learn capture event. */
   "midi:learn": { cc: number; channel: number };
+  /** MIDI learn capture event for note-on (pad triggers). */
+  "midi:learn-note": { note: number; channel: number };
 };
 
 type Handler<K extends keyof BusEvents> = (payload: BusEvents[K]) => void;
