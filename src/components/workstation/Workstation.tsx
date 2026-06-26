@@ -44,6 +44,7 @@ function isDefaultInstance(inst: PanelInstance): boolean {
  */
 export function Workstation() {
   useKeyboardShortcuts();
+  usePadTriggers();
   useEffect(() => {
     workspace.load();
     applyPalette(workspace.get().palette);
